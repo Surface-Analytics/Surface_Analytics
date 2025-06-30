@@ -20,7 +20,6 @@ import urllib
 from sqlalchemy import create_engine
 import pandas as pd
 from azure.identity import InteractiveBrowserCredential
-# from pandasai import SmartDataframe
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -35,10 +34,16 @@ import requests
 from io import BytesIO
 import io
 from devices_library import *
-from WindowsSummaryApproach import *
+from Copilot_Approach2_Code import * 
+from Prediction_Model_V1 import *
 global history
 import os
 import json
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
+global positive_aspects, negative_aspects 
+
 
 file_path = 'chat_history.json'
 
@@ -103,7 +108,7 @@ if not hasattr(st.session_state, 'copilot_curr_ques'):
     st.session_state.copilot_curr_ques = None
 ####################################################################################################################----------------Copilot-------------------#####################################################################################################
 
-Copilot_Sentiment_Data  = pd.read_csv("Cleaned_Combined_Data.csv")
+Copilot_Sentiment_Data  = pd.read_csv("Cleaned_Combined_Data_V1.csv")
 
 st.markdown("""
 <head>
@@ -365,7 +370,7 @@ def get_conversational_chain_quant():
         
 
 #Function to convert user prompt to quantitative outputs for Copilot Review Summarization
-def query_quant(user_question,history,vector_store_path="combine_indexes"):
+def query_quant(user_question,history,vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         # Initialize the embeddings model
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
@@ -488,7 +493,7 @@ def get_conversational_chain_aspect_wise_detailed_summary():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_aspect_wise_detailed_summary(user_question,vector_store_path="combine_indexes"):
+def query_aspect_wise_detailed_summary(user_question,vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -938,7 +943,7 @@ def get_conversational_chain_quant_classify2_compare():
         err = f"An error occurred while getting conversation chain for quantifiable review summarization: {e}"
         return err
 
-def query_quant_classify2_compare(user_question, vector_store_path="combine_indexes"):
+def query_quant_classify2_compare(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     global history
     try:
         # Initialize the embeddings model
@@ -1102,7 +1107,7 @@ Consider Product_Family Column to get different AI names.
         err = f"An error occurred while getting conversation chain for quantifiable review summarization: {e}"
         return err
 
-def query_quant_classify2(user_question, vector_store_path="combine_indexes"):
+def query_quant_classify2(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         # Initialize the embeddings model
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
@@ -1264,7 +1269,7 @@ def get_conversational_chain_detailed_summary():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_detailed_summary(dataframe_as_dict,user_question, history, vector_store_path="combine_indexes"):
+def query_detailed_summary(dataframe_as_dict,user_question, history, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         #st.write("hi")
 #         st.write(user_question)
@@ -1630,9 +1635,8 @@ def get_conversational_chain_generic():
         
         Understanding User Queries:
         1. Carefully read and understand the full user's question.
-        2. If the question is outside the scope of the dataset, respond with: "Sorry! I do not have sufficient information. Can you provide more details?"
-        3. Respond accurately based on the provided Copilot Products and its Competitors like 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI'. Following is the previous conversation from User and Response, use it to get context only:""" + str(history) + """\n
-                Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n
+        2. If the question is outside the scope of the dataset, respond with: "Apologies! Your query falls outside my expertise. Could you please refine it to focus on AI assistance?"
+        3. Respond accurately based on the provided Copilot Products and its Competitors like 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI'.
         Context:\n {context}?\n
         Question: \n{question}\n
  
@@ -1648,7 +1652,7 @@ def get_conversational_chain_generic():
         
         
         
-def query_detailed_generic(user_question, vector_store_path="combine_indexes"):
+def query_detailed_generic(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -1657,7 +1661,8 @@ def query_detailed_generic(user_question, vector_store_path="combine_indexes"):
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
     except Exception as e:
-        err = f"An error occurred while getting LLM response for detailed review summarization: {e}"
+        print(e)
+        err = f"Hello! I can assist with Comparison, Summarization, Aspect-wise Net Sentiment Analysis, and Visualization. If your query doesn't match these capabilities, kindly rephrase or frame your question around these areas. I'm here to help!"
         return err
 
 #----------------------------------------------------------Split Table--------------------------------------------------------------#
@@ -2006,6 +2011,7 @@ Comparison:
 Generic:
 
         -For general questions about any Product Family.
+        -For general questions like how are you?, Hello, 
         -Choose this for queries about pros and cons, common complaints, and top verbatims.
         -Also, choose this if the question involves more than two Product Families.
         -Choose this, if the question ask to summarize reviews for a Apect/feature of any Product or multiple products.
@@ -2031,10 +2037,6 @@ Your response should be one of the following:
 “Quantifiable and Visualization”
 “Comparison”
 “Generic”
-
-Following is the previous conversation from User and Response, use it to get context only:""" + str(history) + """\n
-Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n. 
-
 
 VERY IMPORTANT : When user asks uses references like "from previous response", ":from above response" or "from above", Please refer the previous conversation and respond accordingly.
 """
@@ -2155,7 +2157,7 @@ def get_conversational_chain_detailed_compare():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_detailed_compare(user_question, vector_store_path="combine_indexes"):
+def query_detailed_compare(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -2643,461 +2645,731 @@ def prompt_suggestion(user_question):
     suggestions_interaction += "\nQuestion:\n" + user_question + "\nAnswer:\n" + user_query
     return user_query
 
-            
-            
 def sugg_checkbox(user_question):
-    if not st.session_state.prompt_sugg:
-        questions = prompt_suggestion(user_question)
-        print(f"Prompt Suggestions: {questions}")
-        questions = questions.split('\n')
-        questions_new = []
-        for i in questions:
-            if i[0].isdigit():
-                x = i[3:]
-                questions_new.append(x)
-        st.session_state.prompt_sugg = questions_new
-    checkbox_states = []
-    checkbox_states = [st.checkbox(st.session_state.prompt_sugg[i],key = f"Checkbox{i}") for i in range(len(st.session_state.prompt_sugg))]
-    for i, state in enumerate(checkbox_states):
-        if state:
-            st.session_state.selected_sugg = st.session_state.prompt_sugg[i]
-            st.experimental_rerun()
-            break
-        st.session_state.selected_sugg = None
-    return st.session_state.selected_sugg
+    try:
+        # Check if prompt_sugg is not set, then get the prompt suggestions
+        if not st.session_state.prompt_sugg:
+            questions = prompt_suggestion(user_question)
+            print(f"Prompt Suggestions: {questions}")
+            questions = questions.split('\n')
+            questions_new = []
+            for i in questions:
+                if i[0].isdigit():
+                    x = i[3:]
+                    questions_new.append(x)
+            st.session_state.prompt_sugg = questions_new
+        
+        # Create checkboxes for each suggestion
+        checkbox_states = [st.checkbox(st.session_state.prompt_sugg[i], key=f"Checkbox{i}") for i in range(len(st.session_state.prompt_sugg))]
+        
+        # Check if any checkbox is selected
+        for i, state in enumerate(checkbox_states):
+            if state:
+                st.session_state.selected_sugg = st.session_state.prompt_sugg[i]
+                st.experimental_rerun()
+                break
+            st.session_state.selected_sugg = None
 
-              
-            
+        return st.session_state.selected_sugg
+    
+    except Exception as e:
+        # Log the error and return a blank value if something goes wrong
+        print(f"Error occurred: {e}")
+        st.session_state.selected_sugg = None
+        return None
+
+
 global full_response
+global full_response_new
+global positive_aspects, negative_aspects
+
+positive_aspects = []
+negative_aspects = []
+
 if __name__ == "__main__":
     global full_response
+    global full_response_new
     if st.sidebar.subheader("Select an option"):
-        options = ["Copilot", "Devices"]
+        options = ["Copilot", "Devices","Prediction Model"]
         selected_options = st.sidebar.selectbox("Select product", options)
         if selected_options == "Copilot":
-            # st.session_state['messages'] = []
-            # st.session_state['chat_initiated'] = False
-            st.session_state.devices_flag = False #Created this flag to reset the history for devices. Please do not delete this.
-            st.header("Copilot Review Synthesis Tool")
-            st.session_state.user_question = None #Resetting this variable for Devices, do not delete
-            if "messages" not in st.session_state:
-                st.session_state['messages'] = []
+            # st.header("Devices Review Synthesis Tool")
+            if st.sidebar.subheader("Select an approach for Topics"):
+                options = ["General_Aspects", "Advanced_Aspects"]    
+                selected_options = st.sidebar.selectbox("Select approach", options)
+                if selected_options == "General_Aspects":
+                    st.session_state.devices_flag = False  # Created this flag to reset the history for devices. Please do not delete this.
+                    st.header("REXA - Copilot Review Synthesis Tool")
+                    st.session_state.user_question = None  # Resetting this variable for Devices, do not delete
+
+                    # Initialize session state variables for General_Aspects
+                    if "messages_approach1" not in st.session_state:
+                        st.session_state['messages_approach1'] = []
+                    if "chat_initiated_approach1" not in st.session_state:
+                        st.session_state['chat_initiated_approach1'] = False
+                    if "selected_questions_approach1" not in st.session_state:
+                        st.session_state['selected_questions_approach1'] = ""
+                    if "copilot_curr_ques" not in st.session_state:
+                        st.session_state['copilot_curr_ques'] = None
+
+                    # Display chat history for General_Aspects
+                    for message in st.session_state.messages_approach1:
+                        with st.chat_message(message["role"]):
+                            if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
+                                st.markdown(message["content"], unsafe_allow_html=True)
+                            else:
+                                st.markdown(message["content"])
+
+                    # Handle user input for General_Aspects
+                    if user_inp := st.chat_input("Enter the Prompt: "):
+                        st.session_state.selected_questions_approach1 = user_inp
+                        st.chat_message("user").markdown(st.session_state.selected_questions_approach1)
+                        st.session_state.messages_approach1.append({"role": "user", "content": st.session_state.selected_questions_approach1})
+
+                    # Handle suggestions for General_Aspects
+                    if st.session_state.selected_sugg:
+                        st.session_state.selected_questions_approach1 = st.session_state.selected_sugg
+                        st.chat_message("user").markdown(st.session_state.selected_questions_approach1)
+                        st.session_state.messages_approach1.append({"role": "user", "content": st.session_state.selected_questions_approach1})
+                        st.session_state.selected_sugg = None
+                        st.session_state.prompt_sugg = None
+
+                    # Process the selected question for General_Aspects
+                    if st.session_state.selected_questions_approach1:
+                        with st.chat_message("assistant"):
+                            full_response = ""
+                            if st.session_state.copilot_curr_ques != st.session_state.selected_questions_approach1:
+                                try:
+                                    user_question = st.session_state.selected_questions_approach1.replace("Give me", "What is").replace("Give", "What is")
+                                    user_question_chart = user_question
+                                except:
+                                    pass
+
+                                classification = classify_prompts(user_question)
+                                print(classification)
+                                if classification != 'Generic':
+                                    user_question_1 = rephrase_prompt(str(user_question))
+                                    print(type(user_question_1))
+                                    print(user_question_1)
+                                    user_ques(str(user_question_1), user_question, classification, str(user_question_chart))
+                                else:
+                                    user_question_1 = user_question
+                                    try:
+                                        gen_ans = query_detailed_generic(user_question_1)
+                                        print(gen_ans)
+                                        st.write(gen_ans)
+                                        # Gen = query_quant_classify2_compare("Give me top 10 keywords with their review count and % of positive, negative and neutral for the same keywords to answer: " + user_question_1)
+                                        # print(Gen)
+                                        # st.dataframe(Gen)
+                                        # dic = Gen.to_dict(orient="dict")
+                                        # Gen_Q = query_detailed_generic("Summarize reviews of keywords regarding " + user_question_1 + "Which have the following keyword data:" + str(dic))
+                                        # st.write(Gen_Q)
+                                        full_response += gen_ans
+                                        history = check_history_length(history, gen_ans)
+                                        save_list(history)
+                                    except Exception as e:
+                                        print(e)
+                                        print("I couldn't get there")
+                                        gen_ans = query_detailed_generic(user_question_1)
+                                        print(gen_ans)
+                                        st.write(gen_ans)
+                                        full_response += gen_ans
+                                        history = check_history_length(history, gen_ans)
+                                        save_list(history)
+
+                                st.session_state.messages_approach1.append({"role": "assistant", "content": full_response, "is_html": True})
+                            st.session_state.copilot_curr_ques = st.session_state.selected_questions_approach1
+                            if 'full_response' in globals():
+                                selected_questions = sugg_checkbox(full_response)
+                                st.session_state['chat_initiated_approach1'] = True
+
+                    # Handle new chat button for General_Aspects
+                    if st.session_state['chat_initiated_approach1'] and st.button("New Chat"):
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        st.session_state['messages_approach1'] = []
+                        st.session_state['chat_initiated_approach1'] = False
+                        st.session_state.selected_sugg = None
+                        st.session_state.prompt_sugg = None
+                        st.session_state.selected_questions_approach1 = ""
+                        st.session_state.copilot_curr_ques = None
+                        st.experimental_rerun()
+                else:
+                    if selected_options == "Advanced_Aspects":
+                        st.session_state.devices_flag = False  # Created this flag to reset the history for devices. Please do not delete this.
+                        st.header("Copilot Review Synthesis Tool")
+                        st.session_state.user_question_new = None  # Resetting this variable for Devices, do not delete
+
+                        # Initialize session state variables for Advanced_Aspects
+                        if "messages_approach2" not in st.session_state:
+                            st.session_state['messages_approach2'] = []
+                        if "chat_initiated_approach2" not in st.session_state:
+                            st.session_state['chat_initiated_approach2'] = False
+                        if "selected_questions_approach2" not in st.session_state:
+                            st.session_state['selected_questions_approach2'] = ""
+                        if "copilot_curr_ques" not in st.session_state:
+                            st.session_state['copilot_curr_ques'] = None
+
+                        # Display chat history for Advanced_Aspects
+                        for message in st.session_state.messages_approach2:
+                            with st.chat_message(message["role"]):
+                                if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
+                                    st.markdown(message["content"], unsafe_allow_html=True)
+                                else:
+                                    st.markdown(message["content"])
+
+                        # Handle user input for Advanced_Aspects
+                        if user_inp := st.chat_input("Enter the Prompt: "):
+                            st.session_state.selected_questions_approach2 = user_inp
+                            st.chat_message("user").markdown(st.session_state.selected_questions_approach2)
+                            st.session_state.messages_approach2.append({"role": "user", "content": st.session_state.selected_questions_approach2})
+
+                        # Handle suggestions for Advanced_Aspects
+                        if st.session_state.selected_sugg:
+                            st.session_state.selected_questions_approach2 = st.session_state.selected_sugg
+                            st.chat_message("user").markdown(st.session_state.selected_questions_approach2)
+                            st.session_state.messages_approach2.append({"role": "user", "content": st.session_state.selected_questions_approach2})
+                            st.session_state.selected_sugg = None
+                            st.session_state.prompt_sugg = None
+
+                        # Process the selected question for Advanced_Aspects
+                        if st.session_state.selected_questions_approach2:
+                            with st.chat_message("assistant"):
+                                full_response_new = ""
+                                if st.session_state.copilot_curr_ques != st.session_state.selected_questions_approach2:
+                                    try:
+                                        user_question = st.session_state.selected_questions_approach2.replace("Give me", "What is").replace("Give", "What is")
+                                        user_question_chart = user_question
+                                    except:
+                                        pass
+
+                                    classification = classify_prompts_new(user_question)
+                                    print(classification)
+                                    if classification != 'Generic':
+                                        user_question_1 = rephrase_prompt_new(str(user_question))
+                                        print(type(user_question_1))
+                                        print(user_question_1)
+                                        user_ques_new(str(user_question_1), user_question, classification, str(user_question_chart))
+                                    else:
+                                        user_question_1 = user_question
+                                        try:
+                                            gen_ans = query_detailed_generic_new(user_question_1)
+                                            st.write(gen_ans)
+                                            # Gen = query_quant_classify2_compare_new("Give me top 10 keywords with their review count and % of positive, negative and neutral for the same keywords to answer: " + user_question_1)
+                                            # print(Gen)
+                                            # st.dataframe(Gen)
+                                            # dic = Gen.to_dict(orient="dict")
+                                            # Gen_Q = query_detailed_generic_new("Summarize reviews of keywords regarding " + user_question_1 + "Which have the following keyword data:" + str(dic))
+                                            full_response_new += gen_ans
+                                            history = check_history_length_new(history, gen_ans)
+                                            save_list(history)
+                                        except Exception as e:
+                                            print(e)
+                                            print("I couldn't get there")
+                                            gen_ans = query_detailed_generic_new(user_question_1)
+                                            st.write(gen_ans)
+                                            full_response_new += gen_ans
+                                            history = check_history_length_new(history, gen_ans)
+                                            save_list(history)
+
+                                    st.session_state.messages_approach2.append({"role": "assistant", "content": full_response_new, "is_html": True})
+                                st.session_state.copilot_curr_ques = st.session_state.selected_questions_approach2
+                                if 'full_response_new' in globals():
+                                    selected_questions = sugg_checkbox_new(full_response_new)
+                                    st.session_state['chat_initiated_approach2'] = True
+
+                        # Handle new chat button for Advanced_Aspects
+                        if st.session_state['chat_initiated_approach2'] and st.button("New Chat"):
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                            st.session_state['messages_approach2'] = []
+                            st.session_state['chat_initiated_approach2'] = False
+                            st.session_state.selected_sugg = None
+                            st.session_state.prompt_sugg = None
+                            st.session_state.selected_questions_approach2 = ""
+                            st.session_state.copilot_curr_ques = None
+                            st.experimental_rerun()
+                            
+######################################################################## Devices ###########################################################################################################################################################                          
+
+        elif selected_options == "Devices":
+            st.header("REXA - Devices Review Synthesis Tool")
+            if not st.session_state.devices_flag:
+                st.session_state.display_history_devices = []
+                st.session_state.context_history_devices = []
+                st.session_state.curr_response = ""
+                st.session_state.user_question = None
+                st.session_state.devices_flag = True
+                st.session_state.selected_sugg = None
+                st.session_state.prompt_sugg = None
+                st.session_state.selected_questions = ""
+                st.session_state.copilot_curr_ques = None
+                st.session_state.selected_sugg_devices = None
             if "chat_initiated" not in st.session_state:
                 st.session_state['chat_initiated'] = False
-            for message in st.session_state.messages:
+            for message in st.session_state.display_history_devices:
                 with st.chat_message(message["role"]):
                     if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
                         st.markdown(message["content"], unsafe_allow_html=True)
                     else:
                         st.markdown(message["content"])
             if user_inp := st.chat_input("Enter the Prompt: "):
-                st.session_state.selected_questions = user_inp
-                st.chat_message("user").markdown(st.session_state.selected_questions)
-                st.session_state.messages.append({"role": "user", "content": st.session_state.selected_questions})
+                st.chat_message("user").markdown(user_inp)
+                st.session_state.display_history_devices.append({"role": "user", "content": user_inp, "is_html": False})
+                st.session_state.user_question = user_inp
+
+            if st.session_state.selected_sugg_devices:
+                st.session_state.user_question = st.session_state.selected_sugg_devices
+                st.chat_message("user").markdown(st.session_state.user_question)
+                st.session_state.display_history_devices.append({"role": "user", "content": st.session_state.user_question, "is_html": False})
+                st.session_state.selected_sugg_devices = None
+                st.session_state.prompt_sugg_devices = None
                 
-            if st.session_state.selected_sugg:
-                st.session_state.selected_questions = st.session_state.selected_sugg
-                st.chat_message("user").markdown(st.session_state.selected_questions)
-                st.session_state.messages.append({"role": "user", "content": st.session_state.selected_questions})
-                st.session_state.selected_sugg = None
-                st.session_state.prompt_sugg = None
-            if st.session_state.selected_questions:
+            if st.session_state.user_question:
                 with st.chat_message("assistant"):
-                    full_response = ""
-                    if st.session_state.copilot_curr_ques != st.session_state.selected_questions:
-                        try:
-                            user_question = st.session_state.selected_questions.replace("Give me", "What is").replace("Give", "What is")
-                            user_question_chart= user_question
-                        except:
-                            pass
-                        classification = classify_prompts(user_question)
-                        print(classification)
-                        if classification != 'Generic':
-                            user_question_1 = rephrase_prompt(str(user_question))
-                            print(type(user_question_1))
-                            print(user_question_1)
-                            user_ques(str(user_question_1), user_question, classification, str(user_question_chart))
-                        else:
-                            user_question_1 = user_question
-                            try: 
-                                gen_ans = query_detailed_generic(user_question_1)
-                                st.write(gen_ans)
-                                Gen = query_quant_classify2_compare("Give me top 10 keywords with their review count  and % of positive, negative and neutral for the same keywords to answer : " +  user_question_1)
-                                print(Gen)
-                                st.dataframe(Gen)
-                                dic = Gen.to_dict(orient = "dict")
-                                Gen_Q = query_detailed_generic("Summarize reviews of keywords regarding " + user_question_1 + "Which have the following keyword data:" + str(dic))
-                                st.write(Gen_Q)
-                                full_response += Gen_Q
-                                history = check_history_length(history,Gen_Q)
-                                save_list(history)
-                            except Exception as e:
-                                print(e)
-                                print("I couldn't get there")
-                                gen_ans = query_detailed_generic(user_question_1)
-                                st.write(gen_ans)
-                                full_response += gen_ans
-                                history = check_history_length(history,gen_ans)
-                                save_list(history)
-
-                        st.session_state.messages.append({"role": "assistant", "content": full_response, "is_html": True})
-                    st.session_state.copilot_curr_ques = st.session_state.selected_questions
-                    if selected_options == "Copilot" and 'full_response' in globals():
-                        selected_questions = sugg_checkbox(full_response)
-                        st.session_state['chat_initiated'] = True
-            if st.session_state['chat_initiated'] and st.button("New Chat"):
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                st.session_state['messages'] = []
-                st.session_state['chat_initiated'] = False
-                st.session_state.selected_sugg = None
-                st.session_state.prompt_sugg = None
-                st.session_state.selected_questions = ""
-                st.session_state.copilot_curr_ques = None
-                st.experimental_rerun()
-
-        elif selected_options == "Devices":
-            st.header("Devices Review Synthesis Tool")
-            if st.sidebar.subheader("Select an approach for Topics"):
-                options = ["Aspect-based", "Summary-based"]
-                selected_options = st.sidebar.selectbox("Select approach", options)
-                if not st.session_state.devices_flag:
-                    st.session_state.display_history_devices = []
-                    st.session_state.context_history_devices = []
-                    st.session_state.curr_response = ""
-                    st.session_state.user_question = None
-                    st.session_state.devices_flag = True
-                    st.session_state.selected_sugg = None
-                    st.session_state.prompt_sugg = None
-                    st.session_state.selected_questions = ""
-                    st.session_state.copilot_curr_ques = None
-                if "chat_initiated" not in st.session_state:
-                    st.session_state['chat_initiated'] = False
-                for message in st.session_state.display_history_devices:
-                    with st.chat_message(message["role"]):
-                        if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
-                            st.markdown(message["content"], unsafe_allow_html=True)
-                        else:
-                            st.markdown(message["content"])
-                if user_inp := st.chat_input("Enter the Prompt: "):
-                    st.chat_message("user").markdown(user_inp)
-                    st.session_state.display_history_devices.append({"role": "user", "content": user_inp, "is_html": False})
-                    st.session_state.user_question = user_inp
-                if selected_options == "Aspect-based":
-                    
-######################################    APPROACH 1    #########################################################################
-                    if st.session_state.devices_approach != "Aspect-based":
+                    classification = identify_prompt(st.session_state.user_question)
+                    print(f"\n\nPROMPT CLASSIFICATION FOR {st.session_state.user_question}: {classification}\n\n")
+                    if classification == 'summarization':
+                        device = device_summ(st.session_state.user_question.upper())
+                        st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
                         st.session_state.curr_response = ""
-                        st.session_state.user_question = None
-                        st.session_state.context_history_devices = []
-                        st.session_state.devices_approach = "Aspect-based"
-                        st.session_state.selected_sugg_devices = None
-                        st.session_state.prompt_sugg_devices = None
-                        
-                    if st.session_state.selected_sugg_devices:
-                        st.session_state.user_question = st.session_state.selected_sugg_devices
-                        st.chat_message("user").markdown(st.session_state.user_question)
-                        st.session_state.display_history_devices.append({"role": "user", "content": st.session_state.user_question, "is_html": False})
-                        st.session_state.selected_sugg_devices = None
-                        st.session_state.prompt_sugg_devices = None
-                    
-                    if st.session_state.user_question:
-                        with st.chat_message("assistant"):
-                            classification = identify_prompt(st.session_state.user_question)
-                            print(f"\n\nPROMPT CLASSIFICATION FOR {st.session_state.user_question}: {classification}\n\n")
-                            if classification == 'summarization':
-                                device = device_summ(st.session_state.user_question.upper())
-                                st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
-                                st.session_state.curr_response = ""
 
-                            elif classification == 'comparison':
-                                devices = extract_comparison_devices(st.session_state.user_question)
-                                if len(devices) == 2:
-                                    dev_comp(devices[0],devices[1])
-                                    st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
-                                    st.session_state.curr_response = ""
-                                elif len(devices) > 2:
-                                    identified_devices = []
-                                    for device in devices:
-                                        identified_device = identify_devices(device.upper())
-                                        if identified_device == "Device not available":
-                                            st.write(f"Device {device} not present in the data.")
-                                            continue
-                                        identified_devices.append(identified_device)
-                                    print(identified_devices)
-                                    devices_data = query_quant_classify2_compare_devices("these are the exact names:" + str(identified_devices) + st.session_state.user_question)
-                                    comparison_table = devices_data
-                                    column_found_devices = (comparison_table)
-                                    print(column_found_devices)
-                                    dataframe_as_dict_devices = comparison_table.to_dict(orient = 'dict')
+                    elif classification == 'comparison':
+                        devices = extract_comparison_devices(st.session_state.user_question)
+                        print(devices)
+                        if len(devices) == 2:
+                            dev_comp(devices[0],devices[1])
+                            st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
+                            st.session_state.curr_response = ""
+                        elif len(devices) > 2:
+                            identified_devices = []
+                            for device in devices:
+                                identified_device = identify_devices(device.upper())
+                                if identified_device == "Device not available":
+                                    st.write(f"Device {device} not present in the data.")
+                                    continue
+                                identified_devices.append(identified_device)
+                            print(identified_devices)
+                            devices_data = query_quant_classify2_compare_devices("these are the exact names:" + str(identified_devices) + st.session_state.user_question)
+                            comparison_table = devices_data
+                            column_found_devices = (comparison_table)
+                            print(column_found_devices)
+                            dataframe_as_dict_devices = comparison_table.to_dict(orient = 'dict')
 
+                            try:
+                                # Pivot the table to get the desired format
+                                try:
+                                    compared_pivot_df = comparison_table.pivot_table(index="ASPECT", columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT', aggfunc='first')
+                                    compared_pivot_df = compared_pivot_df.reindex(comparison_table["ASPECT"].drop_duplicates().values)
+                                except Exception as e:
+                                    print(f"Error creating pivot table: {e}")
+
+                                # Process review counts
+                                try:
+                                    comparison_table['REVIEW_COUNT'] = comparison_table['REVIEW_COUNT'].astype(str).str.replace(',', '').astype(float).astype(int)
+                                    aspect_volume = comparison_table.groupby('ASPECT')['REVIEW_COUNT'].sum().reset_index()
+                                except Exception as e:
+                                    print(f"Error processing review counts: {e}")
+
+                                # Merge and sort comparison table
+                                try:
+                                    comparison_table = comparison_table.merge(aspect_volume, on='ASPECT', suffixes=('', '_Total'))
+                                    comparison_table = comparison_table.sort_values(by='REVIEW_COUNT_Total', ascending=False)
+                                except Exception as e:
+                                    print(f"Error merging and sorting comparison table: {e}")
+
+                                # Handle possible scenarios for creating pivot table
+                                try:
+                                    device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT')
+                                    device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                    print("In 1st Case")
+                                except Exception as e1:
+                                    print(f"Error in 1st case: {e1}")
                                     try:
-                                        # Pivot the table to get the desired format
+                                        device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT', values='NET_SENTIMENT_' + 'ASPECT')
+                                        device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                        print("In 2nd Case")
+                                    except Exception as e2:
+                                        print(f"Error in 2nd case: {e2}")
                                         try:
-                                            compared_pivot_df = comparison_table.pivot_table(index="ASPECT", columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT', aggfunc='first')
-                                            compared_pivot_df = compared_pivot_df.reindex(comparison_table["ASPECT"].drop_duplicates().values)
-                                        except Exception as e:
-                                            print(f"Error creating pivot table: {e}")
-
-                                        # Process review counts
-                                        try:
-                                            comparison_table['REVIEW_COUNT'] = comparison_table['REVIEW_COUNT'].astype(str).str.replace(',', '').astype(float).astype(int)
-                                            aspect_volume = comparison_table.groupby('ASPECT')['REVIEW_COUNT'].sum().reset_index()
-                                        except Exception as e:
-                                            print(f"Error processing review counts: {e}")
-
-                                        # Merge and sort comparison table
-                                        try:
-                                            comparison_table = comparison_table.merge(aspect_volume, on='ASPECT', suffixes=('', '_Total'))
-                                            comparison_table = comparison_table.sort_values(by='REVIEW_COUNT_Total', ascending=False)
-                                        except Exception as e:
-                                            print(f"Error merging and sorting comparison table: {e}")
-
-                                        # Handle possible scenarios for creating pivot table
-                                        try:
-                                            device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT')
-                                            device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                            print("In 1st Case")
-                                        except Exception as e1:
-                                            print(f"Error in 1st case: {e1}")
+                                            device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT', 'REVIEW_COUNT_Total'])
+                                            print("In 3rd Case")
+                                        except Exception as e3:
+                                            print(f"Error in 3rd case: {e3}")
                                             try:
-                                                device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT', values='NET_SENTIMENT_' + 'ASPECT')
-                                                device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                                print("In 2nd Case")
-                                            except Exception as e2:
-                                                print(f"Error in 2nd case: {e2}")
+                                                # Creating the pivot table
+                                                device_pivot_df = comparison_table.pivot_table(index='Aspect',columns='Product_Family',values='NET_SENTIMENT')       
+                                                unique_aspects = comparison_table['Aspect'].drop_duplicates().values
+                                                device_pivot_df = device_pivot_df.reindex(unique_aspects)
+                                            except Exception as e4:
+                                                print(f"Error while creating the pivot table: {e4}")
                                                 try:
-                                                    device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT', 'REVIEW_COUNT_Total'])
-                                                    print("In 3rd Case")
-                                                except Exception as e3:
-                                                    print(f"Error in 3rd case: {e3}")
-                                                    try:
-                                                        device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT'])
-                                                        print("In 4th Case")
-                                                    except Exception as e4:
-                                                        print(f"Error in 4th case: {e4}")
-                                                        device_pivot_df = comparison_table
-                                        try:
-                                            additional_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_ASPECT', aggfunc='first')
-                                            additional_pivot_df = additional_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                            print("Pivoting in additional case")
-                                        except Exception as e5:
-                                            print(f"Error in additional case: {e5}")
+                                                    device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT'])
+                                                    print("In 5th Case")
+                                                except Exception as e5:
+                                                    print(f"Error in 5th case: {e5}")
+                                                    device_pivot_df = comparison_table
+                                try:
+                                    additional_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_ASPECT', aggfunc='first')
+                                    additional_pivot_df = additional_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                    print("Pivoting in additional case")
+                                except Exception as e6:
+                                    print(f"Error in additional case: {e6}")
 
-                                        # Convert pivot table to dictionary and generate summary
-                                        dataframe_as_dict_devices = device_pivot_df.to_dict(orient='dict')
-                                        try:
-                                            device_pivot_df = device_pivot_df.astype(int)
-                                        except Exception as e:
-                                            print(f"Error converting pivot table to int: {e}")
-                                            pass
-                                        st.dataframe(device_pivot_df)
-                                        compared_pivot_html = device_pivot_df.to_html(index=False)
-                                        save_history_devices(compared_pivot_html)
-                                        compare_dict = device_pivot_df.to_dict(orient="dict")
-                                        compare_summary = query_detailed_summary_devices("Based on this Data" + str(compare_dict) + "Give detailed answer for this question: " + st.session_state.user_question)
-                                        st.write(compare_summary)
-                                        save_history_devices(compare_summary)
-                                        st.session_state.display_history_devices.append({"role": "assistant", "content": compare_summary, "is_html": True})
-                                    except Exception as e:
-                                        Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
-                                        st.write(Gen_Ans)
-                                        save_history_devices(Gen_Ans)
-                                        st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
-                                else:
-                                    Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
-                                    st.write(Gen_Ans)
-                                    save_history_devices(Gen_Ans)
-                                    st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})  
-
-                            elif classification == 'quant':
-                                user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
-                                user_question_final=user_question_final.replace("DEVICE","")
-                                devices_quant_approach1(user_question_final)
-                                
-
-                            elif classification == 'sales':
-                                user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
-                                user_question_final=user_question_final.replace("DEVICE","")
-                                sales_quant_approach1(user_question_final)
-
-                            else:
+                                # Convert pivot table to dictionary and generate summary
+                                dataframe_as_dict_devices = device_pivot_df.to_dict(orient='dict')
+                                try:
+                                    device_pivot_df = device_pivot_df.astype(int)
+                                except Exception as e:
+                                    print(f"Error converting pivot table to int: {e}")
+                                    pass
+                                st.dataframe(device_pivot_df)
+                                compared_pivot_html = device_pivot_df.to_html(index=False)
+                                save_history_devices(compared_pivot_html)
+                                compare_dict = device_pivot_df.to_dict(orient="dict")
+                                compare_summary = query_detailed_summary_devices("Based on this Data" + str(compare_dict) + "Give detailed answer for this question: " + st.session_state.user_question)
+                                st.write(compare_summary)
+                                save_history_devices(compare_summary)
+                                st.session_state.display_history_devices.append({"role": "assistant", "content": compare_summary, "is_html": True})
+                            except Exception as e:
                                 Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
                                 st.write(Gen_Ans)
                                 save_history_devices(Gen_Ans)
                                 st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
-                        st.session_state['chat_initiated'] = True
+                        else:
+                            Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
+                            st.write(Gen_Ans)
+                            save_history_devices(Gen_Ans)
+                            st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})  
+
+                    elif classification == 'quant':
+                        user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
+                        user_question_final=user_question_final.replace("DEVICE","")
+                        devices_quant_approach1(user_question_final)
                         
-                        print(f"Context History: {str(st.session_state.context_history_devices)}")
-                        print(f"Classification: {classification}")
-                        
-                        if st.session_state.context_history_devices and classification != "summarization":
-                            selected_questions = sugg_checkbox_devices(str(st.session_state.context_history_devices))
-                        
-                    if st.session_state['chat_initiated'] and st.button("New Chat"):
-                        st.session_state['messages'] = []
-                        st.session_state['chat_initiated'] = False
-                        st.session_state.user_question = None
-                        st.session_state.display_history_devices = []
-                        st.session_state.context_history_devices = []
-                        st.session_state.curr_response = ""
-                        st.session_state.prompt_sugg_devices = None
-                        st.session_state.selected_sugg_devices = None
-                        st.experimental_rerun()
-                        
-                elif selected_options == "Summary-based":
-                    if st.session_state.devices_approach != "Summary-based":
-                        st.session_state.user_question = None
-                        st.session_state.context_history_devices = []
-                        st.session_state.curr_response = ""
-                        st.session_state.devices_approach = "Summary-based"
-                        st.session_state.selected_sugg_devices = None
-                        st.session_state.prompt_sugg_devices = None
-                        
-                    if st.session_state.selected_sugg_devices:
-                        st.session_state.user_question = st.session_state.selected_sugg_devices
-                        st.chat_message("user").markdown(st.session_state.user_question)
-                        st.session_state.display_history_devices.append({"role": "user", "content": st.session_state.user_question, "is_html": False})
-                        st.session_state.selected_sugg_devices = None
-                        st.session_state.prompt_sugg_devices = None
-                        
-                    if st.session_state.user_question:   
-                    #if user_question := st.chat_input("Enter the Prompt: "):
-                        with st.chat_message("assistant"):
-                            classification = identify_prompt_new(st.session_state.user_question)
-                            if classification == 'summarization':
-                                device = device_summ_new(st.session_state.user_question.upper())
-                                st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
-                                st.session_state.curr_response = ""
 
-                            elif classification == 'comparison':
-                                devices = extract_comparison_devices_new(st.session_state.user_question)
-                                if len(devices) == 2:
-                                    dev_comp_new(devices[0],devices[1])
-                                    st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
-                                    st.session_state.curr_response = ""
+                    elif classification == 'sales':
+                        user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
+                        user_question_final=user_question_final.replace("DEVICE","")
+                        sales_quant_approach1(user_question_final)
 
-                                elif len(devices) > 2:
-                                    identified_devices = []
-                                    for device in devices:
-                                        identified_device = identify_devices_new(device.upper())
-                                        if identified_device == "Device not available":
-                                            st.write(f"Device {device} not present in the data.")
-                                            continue
-                                        identified_devices.append(identified_device)
-                                    print(identified_devices)
-                                    devices_data = query_quant_classify2_compare_devices_new("these are the exact names:" + str(identified_devices) + st.session_state.user_question)
-                                    comparison_table = devices_data
-                                    column_found_devices = (comparison_table)
-                                    print(column_found_devices)
-                                    dataframe_as_dict_devices = comparison_table.to_dict(orient = 'dict')
+                    else:
+                        Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
+                        st.write(Gen_Ans)
+                        save_history_devices(Gen_Ans)
+                        st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
+                st.session_state['chat_initiated'] = True
+                
+                print(f"Context History: {str(st.session_state.context_history_devices)}")
+                print(f"Classification: {classification}")
+                
+                if st.session_state.context_history_devices and classification != "summarization":
+                    selected_questions = sugg_checkbox_devices(str(st.session_state.context_history_devices))
+                
+            if st.session_state['chat_initiated'] and st.button("New Chat"):
+                st.session_state['messages'] = []
+                st.session_state['chat_initiated'] = False
+                st.session_state.user_question = None
+                st.session_state.display_history_devices = []
+                st.session_state.context_history_devices = []
+                st.session_state.curr_response = ""
+                st.session_state.prompt_sugg_devices = None
+                st.session_state.selected_sugg_devices = None
+                st.experimental_rerun()
 
-                                    try:
-                                        # Pivot the table to get the desired format
-                                        try:
-                                            compared_pivot_df = comparison_table.pivot_table(index="ASPECT", columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT', aggfunc='first')
-                                            compared_pivot_df = compared_pivot_df.reindex(comparison_table["ASPECT"].drop_duplicates().values)
-                                        except Exception as e:
-                                            print(f"Error creating pivot table: {e}")
+######################################    Prediction Model    ######################################################################### 
+ 
+        elif selected_options == "Prediction Model":
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str)
 
-                                        # Process review counts
-                                        try:
-                                            comparison_table['REVIEW_COUNT'] = comparison_table['REVIEW_COUNT'].astype(str).str.replace(',', '').astype(float).astype(int)
-                                            aspect_volume = comparison_table.groupby('ASPECT')['REVIEW_COUNT'].sum().reset_index()
-                                        except Exception as e:
-                                            print(f"Error processing review counts: {e}")
+            st.sidebar.subheader("Select OEM & Device")
+            oem_options = sorted(df['OEM'].unique()) 
+            selected_oem = st.sidebar.selectbox('OEM', oem_options) 
+            filtered_devices = sorted(df[df['OEM'] == selected_oem]['Cleaned_DeviceFamilyName'].unique())
+            selected_device = st.sidebar.selectbox('Device Name', filtered_devices) 
 
-                                        # Merge and sort comparison table
-                                        try:
-                                            comparison_table = comparison_table.merge(aspect_volume, on='ASPECT', suffixes=('', '_Total'))
-                                            comparison_table = comparison_table.sort_values(by='REVIEW_COUNT_Total', ascending=False)
-                                        except Exception as e:
-                                            print(f"Error merging and sorting comparison table: {e}")
+            # Filter data based on the selected device
+            filtered_df = df[df['Cleaned_DeviceFamilyName'] == selected_device]
 
-                                        # Handle possible scenarios for creating pivot table
-                                        try:
-                                            device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT')
-                                            device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                            print("In 1st Case")
-                                        except Exception as e1:
-                                            print(f"Error in 1st case: {e1}")
-                                            try:
-                                                device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT', values='NET_SENTIMENT_' + 'ASPECT')
-                                                device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                                print("In 2nd Case")
-                                            except Exception as e2:
-                                                print(f"Error in 2nd case: {e2}")
-                                                try:
-                                                    device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT', 'REVIEW_COUNT_Total'])
-                                                    print("In 3rd Case")
-                                                except Exception as e3:
-                                                    print(f"Error in 3rd case: {e3}")
-                                                    try:
-                                                        device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT'])
-                                                        print("In 4th Case")
-                                                    except Exception as e4:
-                                                        print(f"Error in 4th case: {e4}")
-                                                        device_pivot_df = comparison_table
-                                        try:
-                                            additional_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_ASPECT', aggfunc='first')
-                                            additional_pivot_df = additional_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
-                                            print("Pivoting in additional case")
-                                        except Exception as e5:
-                                            print(f"Error in additional case: {e5}")
+            # Mapping for specification names to column names in DataFrame
+            spec_columns = {
+                'Processor': 'PFT',
+                'Processor Generation':'Processor Generation',
+                'GPU': 'GPU_Cleaned',
+                'NPU':'NPU_TOPS',
+                'RAM': 'RAM',
+                'Hard Drive': 'HardDrive',
+                'Screen Size': 'ScreenSize',
+                'Display Type':'Display Type',
+                'Resolution': 'Pixels',
+                'Price Band': 'PriceInDollars'     
+            }
 
-                                        # Convert pivot table to dictionary and generate summary
-                                        dataframe_as_dict_devices = device_pivot_df.to_dict(orient='dict')
-                                        try:
-                                            device_pivot_df = device_pivot_df.astype(int)
-                                        except Exception as e:
-                                            print(f"Error converting pivot table to int: {e}")
-                                            pass
-                                        st.dataframe(device_pivot_df)
-                                        compared_pivot_html = device_pivot_df.to_html(index=False)
-                                        save_history_devices_new(compared_pivot_html)
-                                        compare_dict = device_pivot_df.to_dict(orient="dict")
-                                        compare_summary = query_detailed_summary_devices_new("Based on this Data" + str(compare_dict) + "Give detailed answer for this question: " + st.session_state.user_question)
-                                        st.write(compare_summary)
-                                        save_history_devices_new(compare_summary)
-                                        st.session_state.display_history_devices.append({"role": "assistant", "content": compare_summary, "is_html": True})
-                                    except Exception as e:
-                                        Gen_Ans = query_devices_detailed_generic_new(st.session_state.user_question)
-                                        st.write(Gen_Ans)
-                                        save_history_devices_new(Gen_Ans)
-                                        st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
-                                else:
-                                    Gen_Ans = query_devices_detailed_generic_new(st.session_state.user_question)
-                                    st.write(Gen_Ans)
-                                    save_history_devices_new(Gen_Ans)
-                                    st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})  
+            # Cascading filter options for "Actual Device Specifications"
+            selected_actual_specs = {}
+            col1, col2 = st.columns(2)
 
-                            elif classification == 'quant':
-                                user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
-                                user_question_final=user_question_final.replace("DEVICE","")
-                                devices_quant_approach2(user_question_final)
-
-
-                            elif classification == 'sales':
-                                user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
-                                user_question_final=user_question_final.replace("DEVICE","")
-                                sales_quant_approach2(user_question_final)
-                                
-                            else:
-                                Gen_Ans = query_devices_detailed_generic_new(st.session_state.user_question)
-                                st.write(Gen_Ans)
-                                save_history_devices_new(Gen_Ans)
-                                st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
-                        st.session_state['chat_initiated'] = True
-                        if st.session_state.context_history_devices and classification != "summarization":
-                            selected_questions = sugg_checkbox_devices(str(st.session_state.context_history_devices))
+            # with col1:
+                # st.header("Actual Device Specifications")
+                # for spec, col_name in spec_columns.items():
+                    # Get unique values based on previous selections in selected_actual_specs
+                    # options = sorted(filtered_df[col_name].unique(), key=lambda x: (str(x).isdigit(), x))
+                    # selected_value = st.selectbox(f"{spec}", options, key=f"spec_actual_{spec}")
+                    # selected_actual_specs[spec] = selected_value
+                    # Filter the DataFrame based on the current selection
+                    # filtered_df = filtered_df[filtered_df[col_name] == selected_value]
                     
-                    if st.session_state['chat_initiated'] and st.button("New Chat"):
-                        st.session_state['messages'] = []
-                        st.session_state['chat_initiated'] = False
-                        st.session_state.user_question = None
-                        st.session_state.display_history_devices = []
-                        st.session_state.context_history_devices = []
-                        st.session_state.curr_response = ""
-                        st.session_state.prompt_sugg_devices = None
-                        st.session_state.selected_sugg_devices = None
-                        st.experimental_rerun()
+            with col1:
+                st.header("Actual Device Specifications")
+                
+                for spec, col_name in spec_columns.items():
+                    spec_review_counts = filtered_df.groupby(col_name)['Review_Count'].sum().reset_index()
+                    sorted_options = spec_review_counts.sort_values(by='Review_Count', ascending=False)[col_name].tolist()
+                    selected_value = st.selectbox(f"{spec}", sorted_options, key=f"spec_actual_{spec}")
+                    selected_actual_specs[spec] = selected_value
+                    filtered_df = filtered_df[filtered_df[col_name] == selected_value]
+            
+            with col2:
+                st.header("Hypothetical Specifications")
+                selected_hypothetical_specs = {}
+                
+                # Cascading for Processor and Processor Generation
+                processor_options = sorted(df['PFT'].unique(), key=lambda x: (str(x).isdigit(), x))
+                selected_processor = st.selectbox("Processor", processor_options, 
+                                                  index=processor_options.index(selected_actual_specs['Processor']) if selected_actual_specs['Processor'] in processor_options else 0,
+                                                  key="spec_forecast_Processor")
+                selected_hypothetical_specs['Processor'] = selected_processor
+                
+                # Filter unique Processor Generation values based on selected Processor
+                filtered_processor_gen_df = df[df['PFT'] == selected_processor]
+                processor_gen_options = sorted(filtered_processor_gen_df['Processor Generation'].drop_duplicates().tolist(), key=lambda x: (str(x).isdigit(), x))
+                
+                # Ensure selected Processor Generation exists in options
+                selected_processor_gen_index = processor_gen_options.index(selected_actual_specs['Processor Generation']) if selected_actual_specs['Processor Generation'] in processor_gen_options else 0
+                selected_processor_gen = st.selectbox("Processor Generation", processor_gen_options, 
+                                                      index=selected_processor_gen_index,
+                                                      key="spec_forecast_Processor_Generation")
+                selected_hypothetical_specs['Processor Generation'] = selected_processor_gen
+                
+                # Keeping other specs as they are
+                for spec, col in spec_columns.items():
+                    if spec not in ['Processor', 'Processor Generation']:
+                        options = sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x))
+                        selected_index = options.index(selected_actual_specs[spec]) if selected_actual_specs[spec] in options else 0
+                        selected_hypothetical_specs[spec] = st.selectbox(f"{spec}", options, 
+                                                                          index=selected_index, 
+                                                                          key=f"spec_forecast_{spec}")                                                           
+            # with col2:
+                # st.header("Hypothetical Specifications")
+                # selected_hypothetical_specs = {
+                    # spec: st.selectbox(f"{spec}", 
+                                       # sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x)), 
+                                       # index=sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x)).index(selected_actual_specs[spec]), 
+                                       # key=f"spec_forecast_{spec}")
+                    # for spec, col in spec_columns.items()
+                # }
+                
+            filtered_hypothetical_df = df.copy()  # Start with the full DataFrame
+            for spec, selected_value in selected_hypothetical_specs.items():
+                filtered_hypothetical_df = filtered_hypothetical_df[filtered_hypothetical_df[spec_columns[spec]] == selected_value]
+
+            # Add a button to trigger forecast and display filtered data
+            if st.button("Forecast"):
+                # Display selected specifications as debug text
+                # st.text("Selected Specs for Actual Device Specifications:")
+                # st.text(", ".join([f"{spec}: {value}" for spec, value in selected_actual_specs.items()]))
+                Actual_device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_actual_specs.items()]))
+
+                # st.text("Selected Specs for Hypothetical Specifications:")
+                # st.text(", ".join([f"{spec}: {value}" for spec, value in selected_hypothetical_specs.items()]))
+                Hypothetical_Device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_hypothetical_specs.items()]))
+                actual_specs_table = pd.DataFrame(list(selected_actual_specs.items()),columns=["Specification", "Actual Value"])
+
+                hypothetical_specs_table = pd.DataFrame(list(selected_hypothetical_specs.items()), columns=["Specification", "Hypothetical Value"])
+                # print(hypothetical_specs_table)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    # Display the tables in Streamlit
+                    st.write("**Selected Specs for the Actual Device:**")
+                    st.dataframe(actual_specs_table)
+                with col2:
+                    st.write("**Selected Specs for the Hypothetical Device:**")
+                    st.dataframe(hypothetical_specs_table)
+
+
+                # Display the filtered DataFrames
+                # st.write("Filtered Actual Specifications DataFrame:")
+                # st.write(filtered_df)
+
+                # st.write("Filtered Hypothetical Specifications DataFrame:")
+                # st.write(filtered_hypothetical_df)
+
+                # Check if filtered hypothetical specs DataFrame is empty
+                if not filtered_hypothetical_df.empty:
+                    print("Device Specs Avaliable in Database") 
+                    # Show both actual and forecasted net sentiment side by side
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment_actual = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment_actual:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment_actual = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_actual['Net_Sentiment'] = aspect_wise_net_sentiment_actual['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual['Negative_Percentage'] = aspect_wise_net_sentiment_actual['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual[aspect_wise_net_sentiment_actual['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a = aspect_wise_net_sentiment_actual[['Aspect', 'Net_Sentiment']]
+                        st.write(aspect_sentiment_Actual_a)
+
+                    with col2:
+                        net_sentiment_forecasted = calculate_net_sentiment(filtered_hypothetical_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment_forecasted:.2f}%"
+                        st.write(forecasted_sentiment_message)
+
+                        aspect_wise_net_sentiment_forecasted = filtered_hypothetical_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_forecasted['Net_Sentiment'] = aspect_wise_net_sentiment_forecasted['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted['Negative_Percentage'] = aspect_wise_net_sentiment_forecasted['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted[aspect_wise_net_sentiment_forecasted['Review_Count'] >= 25]
+                        aspect_sentiment_forecast_b = aspect_wise_net_sentiment_forecasted[['Aspect', 'Net_Sentiment']]
+                        print(aspect_wise_net_sentiment_forecasted)
+                        st.write(aspect_sentiment_forecast_b)                        
+                   
+                    forecasted_summary = hypothetical_summary("Actual device sentiment are: " + str(aspect_sentiment_Actual_a.to_dict()) + "Hypothetical device specifications are: " + str(aspect_sentiment_forecast_b.to_dict())+ "Analyze sentiment changes for each aspect. Highlight positive trends where sentiment improved and provide constructive insights where it declined.")
+                    st.write(forecasted_summary)
+
+                else:
+                    user_prompt = spec_sentence( "Actual device specifications are: "+Actual_device_Specs + "Hypothetical device specifications are: "+ Hypothetical_Device_Specs + "Please provide the query to generate the hypothetical net sentiment.")
+                    print(user_prompt)
+                    result = sub_aspect_extraction(user_prompt)
+                    print(result)  # Display the result for debugging
+
+                    positive_match = re.search(r'Positive\s*:\s*(.*?)\s*Negative', result, re.DOTALL)
+                    
+                    negative_match = re.search(r'Negative\s*:\s*(.*)', result, re.DOTALL)
+
+                    positive_aspects = positive_match.group(1).split(',') if positive_match else []
+                    negative_aspects = negative_match.group(1).split(',') if negative_match else []
+
+                    positive_aspects = [aspect.strip() for aspect in positive_aspects]
+                    negative_aspects = [aspect.strip() for aspect in negative_aspects]
+                       
+                    a = positive_aspects
+                    b = negative_aspects
+                    # oled_percentage = calculate_sentiment_percentage(df)
+
+                    print(f"Positive Aspects: {positive_aspects}")
+                    print(f"Negative Aspects: {negative_aspects}")
+
+                    # Continue with the existing logic for actual specs
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment1['Net_Sentiment'] = aspect_wise_net_sentiment1['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Negative_Percentage'] = aspect_wise_net_sentiment1['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Neutral_Percentage'] = aspect_wise_net_sentiment1['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Positive_Percentage'] = aspect_wise_net_sentiment1['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment1)
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1[aspect_wise_net_sentiment1['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a1 = aspect_wise_net_sentiment1[['Aspect', 'Net_Sentiment']]
+                        # print(aspect_wise_net_sentiment1.to_dict())
+                        # print(aspect_wise_net_sentiment1)
+                        st.write(aspect_sentiment_Actual_a1)
+
+                    with col2:
+                        filtered_df['Sentiment_Score'] = filtered_df.apply(assign_sentiment, axis=1, args=(a, b))
+                        try:
+                            filter_criteria = find_changed_aspects(actual_specs_table, hypothetical_specs_table)
+                            print(filter_criteria)
+                            print(selected_oem)
+                            sentiment_dfs = calculate_sentiment_percentage_per_column_oem(df, filter_criteria, selected_oem)
+                            print(sentiment_dfs)
+                            filtered_df = apply_target_percentages(sentiment_dfs, filtered_df)
+                        except Exception as e:
+                            print(f"Error encountered in logic functions: {e}. Returning unmodified filtered_df.")
+                            # print(f"error")
+  
+                        # target_percentages_dict = {}
+                        # for column, data in sentiment_dfs.items():
+                            # aspect = data["Aspect"]
+                            # sentiment_df = data["Sentiment DataFrame"]
+                            
+                            # if not sentiment_df.empty:
+                                # target_percentages_dict[aspect] = {
+                                    # "negative": sentiment_df["Negative (%)"].values[0],
+                                    # "neutral": sentiment_df["Neutral (%)"].values[0],
+                                    # "positive": sentiment_df["Positive (%)"].values[0]
+                                # }
+                        # print(target_percentages_dict)
+                        # for aspect, target_percentages in target_percentages_dict.items():
+                            # filtered_df = adjust_sentiment_distribution(filtered_df, aspect, target_percentages)                        
+                        # if ("Display Type" in hypothetical_specs_table["Specification"].values and 
+                            # hypothetical_specs_table.loc[hypothetical_specs_table["Specification"] == "Display Type", "Hypothetical Value"].values[0] == "OLED"):
+                            # try:
+                                # print("OLED logic Applied")
+                                # target_percentages = get_target_percentages(hypothetical_specs_table, oled_percentage)
+                                # print(target_percentages)
+                                # filtered_df = adjust_display_sentiment(filtered_df, target_percentages)
+                            # except Exception as e:
+                                # print(f"Error occurred in logic: {e}")
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(forecasted_sentiment_message)
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()                        
+                                  
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment['Net_Sentiment'] = aspect_wise_net_sentiment['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Negative_Percentage'] = aspect_wise_net_sentiment['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Neutral_Percentage'] = aspect_wise_net_sentiment['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Positive_Percentage'] = aspect_wise_net_sentiment['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment)
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment[aspect_wise_net_sentiment['Review_Count'] >= 25]  
+                        aspect_sentiment_Actual_a2 = aspect_wise_net_sentiment[['Aspect', 'Net_Sentiment']]
+                        # print(aspect_wise_net_sentiment)
+                        # print(aspect_wise_net_sentiment.to_dict())
+                        st.write(aspect_sentiment_Actual_a2)
+                           
+                    forecasted_summary = hypothetical_summary("Actual device aspect wise sentiment are: "+str(aspect_sentiment_Actual_a1.to_dict()) + "Hypothetical device aspect wise sentiment are: "+ str(aspect_sentiment_Actual_a2.to_dict()) + "Analyze the provided data to P identify sentiment changes for each aspect. Provide a detailed summary highlighting positive insights for aspects with improved sentiment and offering constructive insights for aspects with declined sentiment" + user_prompt)
+                    st.write(forecasted_summary)

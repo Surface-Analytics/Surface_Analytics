@@ -19,7 +19,6 @@ import urllib
 from sqlalchemy import create_engine
 import pandas as pd
 from azure.identity import InteractiveBrowserCredential
-# from pandasai import SmartDataframe
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -54,15 +53,11 @@ deployment_name='Surface_Analytics'
 azure_deployment_name = "Thruxton_R"
 azure_embedding_name ="MV_Agusta"
 
-RCR_Sales_Data = pd.read_csv('RCR Sales Data Sample V3.csv')
-dev_mapping = pd.read_csv('SalesSentimentMapping.csv')
-Devices_Sentiment_Data  = pd.read_csv("Windows_Data_116K.csv")
-
-#Filtering RCR Sales Data based on devices present in Sales-Sentiment Device Name Mapping File
+RCR_Sales_Data = pd.read_csv("RCR Sales Data Sample V7.csv")
+dev_mapping = pd.read_csv("Sales_Sentiment_Bridge_0606_25.csv")
+Devices_Sentiment_Data  = pd.read_csv("FinalSentimentData_Cleaned_0606_25.csv")
 mapping_sales_devices = list(dev_mapping['SalesDevice'].unique())
 RCR_Sales_Data = RCR_Sales_Data[RCR_Sales_Data['Series'].isin(mapping_sales_devices)]
-
-#Filtering Sentiment Data based on devices present in Sales-Sentiment Device Name Mapping File
 mapping_sentiment_devices = list(dev_mapping['SentimentDevice'].unique())
 Devices_Sentiment_Data = Devices_Sentiment_Data[Devices_Sentiment_Data['Product_Family'].isin(mapping_sentiment_devices)]
 
@@ -82,16 +77,167 @@ if not hasattr(st.session_state, 'prompt_sugg_devices'):
     st.session_state.prompt_sugg_devices = ""
 if not hasattr(st.session_state, 'selected_sugg_devices'):
     st.session_state.selected_sugg_devices = ""
+if "Devices_Sentiment_Data" not in st.session_state:
+    st.session_state["Devices_Sentiment_Data"] = Devices_Sentiment_Data.copy()
+if "RCR_Sales_Data" not in st.session_state:
+    st.session_state["RCR_Sales_Data"] = RCR_Sales_Data.copy()
 
-    
+Devices_Sentiment_Data = st.session_state["Devices_Sentiment_Data"]
+RCR_Sales_Data = st.session_state["RCR_Sales_Data"]
+
 def save_history_devices(summ):
     if not hasattr(st.session_state, 'context_history_devices'):
         st.session_state.context_history_devices = []
     if len(st.session_state.context_history_devices)>3:
         st.session_state.context_history_devices = st.session_state.context_history_devices[1:]
-    st.session_state.context_history_devices.append(summ)
+    st.session_state.context_history_devices.append(summ)    
+    
+    
+# def filter_devices(data, geography_selection, os_selection):
+    # data["Review_Count"] = 1.0
+    # data["Sentiment_Score"] = data["Sentiment"].apply(Sentiment_Score_Derivation)
+    # geography_map = {
+        # "DM7": ["UK", "US", "CA", "DE", "FR", "AU", "JP"],
+        # "PRC": ["CN"]
+    # }
+    # os_map = {
+        # "Windows": ["Windows"],
+        # "MacOS": ["Apple OS"],
+        # "ChromeOS": ["Chrome OS"],
+        # "All": data["OSType"].unique().tolist()}
 
+    # print(f"Filtering data for Geography: {geography_selection}, OS Type: {os_selection}")
 
+    # if geography_selection in geography_map:
+        # filtered_data = data[data["Geography"].isin(geography_map[geography_selection])]
+    # elif geography_selection == "ROW":
+        # excluded_countries = geography_map["DM7"] + geography_map["PRC"]
+        # filtered_data = data[~data["Geography"].isin(excluded_countries)]
+    # else:
+        # filtered_data = data
+
+    # if os_selection in os_map:
+        # filtered_data = filtered_data[filtered_data["OSType"].isin(os_map[os_selection])]
+    # print(f"Devices Filtered rows: {len(filtered_data)}")
+    # return filtered_data
+    
+def filter_devices(data, geography_selection, os_selection, copilot_selection):
+    data["Review_Count"] = 1.0
+    data["Sentiment_Score"] = data["Sentiment"].apply(Sentiment_Score_Derivation)
+
+    geography_map = {
+        "DM7": ["UK", "US", "CA", "DE", "FR", "AU", "JP", "GR"],
+        "PRC": ["CN"]
+    }
+
+    os_map = {
+        "Windows": ["Windows OS"],
+        "MacOS": ["Apple OS"],
+        "ChromeOS": ["Chrome OS"],
+        "All": data["OSType"].unique().tolist()
+    }
+
+    print(f"Filtering data for Geography: {geography_selection}, OS Type: {os_selection}, copilot+PC: {copilot_selection}")
+
+    # Filter by geograph
+    if geography_selection in geography_map:
+        filtered_data = data[data["Geography"].isin(geography_map[geography_selection])]
+    elif geography_selection == "ROW":
+        excluded_countries = geography_map["DM7"] + geography_map["PRC"]
+        filtered_data = data[~data["Geography"].isin(excluded_countries)]
+    else:
+        filtered_data = data
+
+    # Filter by OS type
+    if os_selection in os_map:
+        filtered_data = filtered_data[filtered_data["OSType"].isin(os_map[os_selection])]
+
+    # Filter by Copilot+PC
+    if copilot_selection == "Yes":
+        filtered_data = filtered_data[filtered_data["Copilot+ PC"] == "Yes"]
+    elif copilot_selection == "No":
+        filtered_data = filtered_data[filtered_data["Copilot+ PC"] == "No"]
+    elif copilot_selection == "All":
+        pass
+
+    print(f"Devices Filtered rows: {len(filtered_data)}")
+    return filtered_data
+
+    
+def load_filtered_device_data(geography_selection, os_selection, copilot_selection):
+    return filter_devices(Devices_Sentiment_Data, geography_selection, os_selection, copilot_selection)
+    
+# def Sales_filter_devices(data, geography_selection, os_selection):
+    # geography_map = {
+        # "DM7": ["United Kingdom", "United States", "Canada", "Germany", "France", "Australia", "Japan"],
+        # "PRC": ["China"]
+    # }
+
+    # os_map = {
+        # "Windows": ["Windows OS"],
+        # "MacOS": ["Mac OS"],
+        # "ChromeOS": ["Chrome OS"],
+        # "All": data["OS_VERSION"].unique().tolist()}
+
+    # print(f"Filtering data for Country: {geography_selection}, OS_VERSION : {os_selection}")
+
+    # if geography_selection in geography_map:
+        # filtered_data = data[data["Country"].isin(geography_map[geography_selection])]
+    # elif geography_selection == "ROW":
+        # excluded_countries = geography_map["DM7"] + geography_map["PRC"]
+        # filtered_data = data[~data["Country"].isin(excluded_countries)]
+    # else:
+        # filtered_data = data
+
+    # if os_selection in os_map:
+        # filtered_data = filtered_data[filtered_data["OS_VERSION"].isin(os_map[os_selection])]
+    # print(f"Sales Filtered rows: {len(filtered_data)}")
+    # return filtered_data
+    
+def Sales_filter_devices(data, geography_selection, os_selection, copilot_selection):
+    geography_map = {
+        "DM7": ["United Kingdom", "United States", "Canada", "Germany", "France", "Australia", "Japan"],
+        "PRC": ["China"]
+    }
+ 
+    os_map = {
+        "Windows": ["Windows OS"],
+        "MacOS": ["Mac OS"],
+        "ChromeOS": ["Chrome OS"],
+        "All": data["OS_VERSION"].unique().tolist()
+    }
+ 
+    print(f"Filtering data for Country: {geography_selection}, OS_VERSION: {os_selection}, Copilot+PC: {copilot_selection}")
+ 
+    # Filter by Geography
+    if geography_selection in geography_map:
+        filtered_data = data[data["Country"].isin(geography_map[geography_selection])]
+    elif geography_selection == "ROW":
+        excluded_countries = geography_map["DM7"] + geography_map["PRC"]
+        filtered_data = data[~data["Country"].isin(excluded_countries)]
+    else:
+        filtered_data = data
+ 
+    # Filter by OS
+    if os_selection in os_map:
+        filtered_data = filtered_data[filtered_data["OS_VERSION"].isin(os_map[os_selection])]
+ 
+    # Filter by Copilot+PC
+    if copilot_selection == "Yes":
+        filtered_data = filtered_data[filtered_data["Copilot+ PC"] == "Yes"]
+    elif copilot_selection == "No":
+        filtered_data = filtered_data[filtered_data["Copilot+ PC"] == "No"]
+    elif copilot_selection == "All":
+        pass  # Do not filter
+ 
+    print(f"Sales Filtered rows: {len(filtered_data)}")
+    return filtered_data
+ 
+ 
+def load_filtered_sales_data(geography_selection, os_selection, copilot_selection):
+    return Sales_filter_devices(RCR_Sales_Data, geography_selection, os_selection, copilot_selection)
+
+    
 def Sentiment_Score_Derivation(value):
     try:
         if value == "Positive":
@@ -103,16 +249,13 @@ def Sentiment_Score_Derivation(value):
     except:
         err = f"An error occurred while deriving Sentiment Score."
         print(err)
-        return err    
-
-#Deriving Sentiment Score and Review Count columns into the dataset
-Devices_Sentiment_Data["Sentiment_Score"] = Devices_Sentiment_Data["Sentiment"].apply(Sentiment_Score_Derivation)
-Devices_Sentiment_Data["Review_Count"] = 1.0    
+        return err
+        
     
 
 RCR_context = """
     1. Your Job is to convert the user question to SQL Query (Follow Microsoft SQL server SSMS syntax.). You have to give the query so that it can be used on Microsoft SQL server SSMS.You have to only return query as a result.
-    2. There is only one table with table name RCR_Sales_Data where each row has. The table has 20 columns, they are:
+    2. There is only one table with table name RCR_Sales_Data where each row has. The table has 16+ columns, they are:
         Month: Contains dates for the records
         Country: From where the sales has happened. It contains following values: 'Turkey','India','Brazil','Germany','Philippines','France','Netherlands','Spain','United Arab Emirates','Czech Republic','Norway','Belgium','Finland','Canada','Mexico','Russia','Austria','Poland','United States','Switzerland','Italy','Colombia','Japan','Chile','Sweden','Vietnam','Saudi Arabia','South Africa','Peru','Indonesia','Taiwan','Thailand','Ireland','Korea','Hong Kong SAR','Malaysia','Denmark','New Zealand','China' and 'Australia'.
         Geography: From which Country or Region the review was given. It contains following values: 'Unknown', 'Brazil', 'Australia', 'Canada', 'China', 'Germany','France'.
@@ -122,13 +265,14 @@ RCR_context = """
         SCREEN_SIZE_INCHES: Screen Size of the Device.
         PRICE_BRAND_USD_3: Band of the price at which the device is selling. It contains following values: '0-300', '300-500', '500-800' and '800+.
         OS_VERSION: Operating System version intall on the device. It contains following values: 'Windows 11', 'Chrome', 'Mac OS'.
-        Operating_System_Summary: Operating System installed on the device. This is at uber level. It contains following values: 'Windows', 'Google OS', 'Apple OS'.
+        Operating_System_Summary: Operating System installed on the device. This is at uber level. It contains following values: 'Windows OS', 'Google OS', 'Apple OS'.
         Sales_Units: Number of Devices sold for that device in a prticular month and country.
         Sales_Value: Revenue Generated by the devices sold.
         Series: Family of the device such as IdeaPad 1, HP Laptop 15 etc.
         Specs_Combination: Its contains the combination of Series, Processor, RAM , Storage and Screen Size. For Example: SURFACE LAPTOP GO | Ci5 | 8 GB | 256.0 SSD | 12" .
         Chassis Segment: It contains following values: 'SMB_Upper','Mainstream_Lower','SMB_Lower','Enterprise Fleet_Lower','Entry','Mainstream_Upper','Premium Mobility_Upper','Enterprise Fleet_Upper','Premium Mobility_Lower','Creation_Lower','UNDEFINED','Premium_Mobility_Upper','Enterprise Work Station','Unknown','Gaming_Musclebook','Entry_Gaming','Creation_Upper','Mainstrean_Lower'
-        
+        Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
     3.  When Asked for Price Range you have to use ASP Column to get minimum and Maxium value. Do not consider Negative Values. Also Consider Sales Units it shouldn't be 0.
         Exaple Query:
             SELECT MIN(ASP) AS Lowest_Value, MAX(ASP) AS Highest_Value
@@ -166,7 +310,7 @@ RCR_context = """
             ORDER BY "TOTAL SALES UNITS" DESC
             LIMIT 1;
     9. If asked about similar compete devices.
-    Example Query:
+        Example Query:
             SQL = WITH DeviceNameASP AS (
                     SELECT
                         'Device Name' AS Series,
@@ -217,22 +361,60 @@ RCR_context = """
                     RankedCompetitors
                 WHERE
                     rank <= 3;
-
-    10. If asked about dates or year SUBSTR() function instead of Year() or Month()
-    11. Convert numerical outputs to float upto 2 decimal point.
-    12. Always include ORDER BY clause to sort the table based on the aggregate value calculated in the query.
-    13. Always use 'LIKE' operator whenever they mention about any Country, Series. Use 'LIMIT' operator instead of TOP operator.Do not use TOP OPERATOR. Follow syntax that can be used with pandasql.
-    14. If you are using any field in the aggregate function in select statement, make sure you add them in GROUP BY Clause.
-    15. Make sure to Give the result as the query so that it can be used on Microsoft SQL server SSMS.
-    16. Always use LIKE function instead of = Symbol while generating SQL Query
-    17. Important: User can ask question about any categories including Country, OEMGROUP,OS_VERSION etc etc. Hence, include the in SQL Query if someone ask it.
-    18. Important: Use the correct column names listed above. There should not be Case Sensitivity issue. 
-    19. Important: The values in OPERATING_SYSTEM_SUMMARY are ('Apple OS', 'Google OS') not ('APPLE OS', 'GOOGLE OS'). So use exact values. Not everything should be capital letters.
-    20. Important: You Response should directly starts from SQL query nothing else."""
+    10. What is the total sales value and sales units for Copilot+ PCs in the United States?
+        Example Query:
+        SELECT 
+            SUM(Sales_Value) AS Total_Sales_Value,
+            SUM(Sales_Units) AS Total_Sales_Units
+        FROM 
+            RCR_Sales_Data
+        WHERE 
+            [Copilot+ PC] = 'Yes'
+            AND Country = 'United States';
+    11. Show the monthly sales trend for Copilot+ PCs across all countries
+        Example Query:
+        SELECT 
+            FORMAT(Month, 'yyyy-MM') AS Sales_Month,
+            Country,
+            SUM(Sales_Units) AS Total_Sales_Units
+        FROM 
+            RCR_Sales_Data
+        WHERE 
+            [Copilot+ PC] = 'Yes'
+        GROUP BY 
+            FORMAT(Month, 'yyyy-MM'), Country
+        ORDER BY 
+            Sales_Month, Country;
+    12. What is the ASP price range for Surface Laptop 6 that are Copilot+ PCs?
+        Example Query:
+        SELECT 
+            MIN(ASP) AS Lowest_Value,
+            MAX(ASP) AS Highest_Value
+        FROM 
+            RCR_Sales_Data
+        WHERE 
+            Series = 'Surface Laptop 6'
+            AND [Copilot+ PC] = 'Yes'
+            AND ASP >= 0
+            AND Sales_Units <> 0;
+     
+    13. If asked about dates or year SUBSTR() function instead of Year() or Month()
+    14. Convert numerical outputs to float upto 2 decimal point.
+    15. Always include ORDER BY clause to sort the table based on the aggregate value calculated in the query.
+    16. Always use 'LIKE' operator whenever they mention about any Country, Series. Use 'LIMIT' operator instead of TOP operator.Do not use TOP OPERATOR. Follow syntax that can be used with pandasql.
+    17. If you are using any field in the aggregate function in select statement, make sure you add them in GROUP BY Clause.
+    18. Make sure to Give the result as the query so that it can be used on Microsoft SQL server SSMS.
+    19. Always use LIKE function instead of = Symbol while generating SQL Query
+    20. Important: User can ask question about any categories including Country, OEMGROUP,OS_VERSION etc etc. Hence, include the in SQL Query if someone ask it.
+    21. Important: Use the correct column names listed above. There should not be Case Sensitivity issue. 
+    22. Important: The values in OPERATING_SYSTEM_SUMMARY are ('Apple OS', 'Google OS') not ('APPLE OS', 'GOOGLE OS'). So use exact values. Not everything should be capital letters.
+    23. Important: You Response should directly starts from SQL query nothing else."""
 
 interaction = ""
 
 def generate_SQL_Query(user_question):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     global RCR_context, interaction
     try:
         # Append the new question to the context
@@ -288,10 +470,34 @@ def process_tablename(sql, table_name):
     return query
 
 
+# def process_tablename_devices(sql, table_name):
+    # try:
+        # x = sql.upper()
+        # query = x.replace(table_name.upper(), table_name)
+        
+        # if '!=' in query or '=' in query:
+            # query = query.replace("!="," NOT LIKE ")
+            # query = query.replace("="," LIKE ")
+            
+            # pattern = r"LIKE\s'([^']*)'"
+            # def add_percentage_signs(match):
+                # return f"LIKE '%{match.group(1)}%'"
+            # query = re.sub(pattern, add_percentage_signs, query)
+        
+        # return query
+    # except:
+        # err = f"An error occurred while processing table name in SQL query."
+        # return err
+        
 def process_tablename_devices(sql, table_name):
     try:
         x = sql.upper()
         query = x.replace(table_name.upper(), table_name)
+
+        if "'YES'" in query:
+            query = query.replace("'YES'", "'Yes'")
+        if "'NO'" in query:
+            query = query.replace("'NO'", "'No'")
         
         if '!=' in query or '=' in query:
             query = query.replace("!="," NOT LIKE ")
@@ -306,12 +512,11 @@ def process_tablename_devices(sql, table_name):
     except:
         err = f"An error occurred while processing table name in SQL query."
         return err
-        
-
-
 
 
 def get_sales_units(device_name):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         question = "Totals Sales Units for " + device_name
         a = generate_SQL_Query(question)
@@ -360,6 +565,8 @@ def correct_compete_sales_query(SQL_Query):
 
 
 def get_ASP(device_name):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         question = "What's ASP for " + device_name
         a = generate_SQL_Query(question)
@@ -375,21 +582,29 @@ def get_ASP(device_name):
     return asp
 
 def get_date_range(device_name):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         device = get_sales_device_name(device_name)
         device_sales_data = RCR_Sales_Data.loc[RCR_Sales_Data["Series"] == device]
-        device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m/%d/%Y')
+        try:
+            device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m-%d-%Y')
+        except:
+            device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m/%d/%Y')
         min_date = device_sales_data["Month"].min().strftime('%Y-%m-%d')
         max_date = device_sales_data["Month"].max().strftime('%Y-%m-%d')
     except:
-        min_date = "NA"
-        max_date = "NA"
+        min_date = "2024-01-01"
+        max_date = "2025-03-01"
+        # min_date = "NA"
+        # max_date = "NA"
         print(f"Error occured in getting date range for sales data of {device_name}")
     return min_date, max_date
-
         
 
 def get_highest_selling_specs(device_name):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         question = "What's highest selling Specs Combination for " + device_name
         a = generate_SQL_Query(question)
@@ -408,6 +623,8 @@ def get_highest_selling_specs(device_name):
     return specs,sales_unit
 
 def compete_device(device_name):
+    if "RCR_Sales_Data" in st.session_state:
+        globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         question = "What are the compete device for " + device_name
         a = generate_SQL_Query(question)
@@ -623,11 +840,11 @@ def get_conversational_chain_detailed_summary_devices():
         
         For Each Aspect
         
-        Condition 1 : If the net sentiment is less than aspect sentiment, which means that particular aspect is driving the net sentiment Higher for that device. In this case provide why the aspect sentiment is lower than net sentiment.
-        Condition 2 : If the net sentiment is high than aspect sentiment, which means that particular aspect is driving the net sentiment Lower for that device. In this case provide why the aspect sentiment is higher than net sentiment. 
+        Condition 1 : If the net sentiment is less than aspect sentiment, which means that particular aspect is driving the net sentiment higher for that device. In this case provide why the aspect sentiment is higher than net sentiment.
+        Condition 2 : If the net sentiment is high than aspect sentiment, which means that particular aspect is driving the net sentiment lower for that device. In this case provide why the aspect sentiment is lower than net sentiment. 
 
             IMPORTANT: Use only the data provided to you and do not rely on pre-trained documents.
-
+t
             Your summary should justify the above conditions and tie in with the net sentiment and aspect sentiment and keywords. Mention the difference between Net Sentiment and Aspect Sentiment (e.g., -2% or +2% higher than net sentiment) in your summary and provide justification.
             
             Your response should be : 
@@ -647,7 +864,7 @@ def get_conversational_chain_detailed_summary_devices():
             
             IMPOPRTANT : Start with : "These are the 4 major aspects users commented about" and mention their review count contributions
                
-                           These are the 4 major aspects users commented about:
+                           These are the 4 major aspects users mentioned about:
                            
                         - Total Review for Vivobook Device is 1200
                         - Price: 13.82% of the reviews mentioned this aspect
@@ -696,13 +913,10 @@ def get_conversational_chain_detailed_summary_devices():
                     
           Enhance the model’s comprehension to accurately interpret user queries by:
           Recognizing abbreviations for country names (e.g., ‘DE’ for Germany, ‘USA’or 'usa' or 'US' for the United States of America) and expanding them to their full names for clarity.
-          Understanding product family names even when written in reverse order or missing connecting words (e.g., ‘copilot in windows 11’ as ‘copilot windows’ and ‘copilot for security’ as ‘copilot security’ etc.).
           Utilizing context and available data columns to infer the correct meaning and respond appropriately to user queries involving variations in product family names or geographical references
           Please provide a comprehensive Review summary, feature comparison, feature suggestions for specific product families and actionable insights that can help in product development and marketing strategies.
           Generate acurate response only, do not provide extra information.
-          \nFollowing is the previous conversation from User and Response, use it to get context only:""" + str(st.session_state.context_history_devices) + """\n
-                Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n. When user asks uses references like "from previous response", ":from above response" or "from above", Please refer the previous conversation and respond accordingly.\n
-            
+          
             Important: Generate outputs using the provided dataset only, don't use pre-trained information to generate outputs.\n
         Context:\n {context}?\n
         Question: \n{question}\n
@@ -722,7 +936,7 @@ def get_conversational_chain_detailed_summary_devices():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_detailed_summary_devices(user_question, vector_store_path="faiss_index_Windows_116k"):
+def query_detailed_summary_devices(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment=azure_embedding_name)
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -799,6 +1013,11 @@ def get_conversational_chain_summary():
         Keywords: Keywords mentioned in the review.
         Review_Count: Will be 1 for each review or row.
         Sentiment_Score: Will be 1, 0, or -1 based on the sentiment.
+        OEM: Manufacturer of the device, containing values such as HP, Dell, Lenovo, Microsoft, Apple, etc.       
+        Chassis: Classification of the device based on its physical design and build, containing values such as 'Premium Mobility Lower', 'Mainstream Upper', 'Premium Mobility Upper', 'Creation Upper', 'Desktop AIO', 'Enterprise Fleet Lower' etc...  
+        OSType: The operating system type of the product, such as "Windows 11", "Windows 10", "Linux", or "ChromeOS". 
+        Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
         Please ensure that the response is based on the analysis of the provided dataset, summarizing both positive and negative aspects of each product.
         Important: Generate outputs using the provided dataset only, don't use pre-trained information to generate outputs.\n
 
@@ -819,13 +1038,10 @@ def get_conversational_chain_summary():
 
 def query_to_embedding_summarize(user_question, txt_file_path):
     try:
-        text = get_txt_text(txt_file_path)
-        chunks = get_text_chunks(text)
-        get_vector_store(chunks)
         embeddings = AzureOpenAIEmbeddings(azure_deployment=azure_embedding_name)
 
         # Load the vector store with the embeddings model
-        new_db = FAISS.load_local("faiss-index", embeddings, allow_dangerous_deserialization=True)
+        new_db = FAISS.load_local("Sentiment_Data_Indexes_0906_25", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
         chain = get_conversational_chain_summary()
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
@@ -846,8 +1062,8 @@ def get_conversational_chain_quant_classify2_devices():
             You are an AI Chatbot assistant. Understand the user question carefully and follow all the instructions mentioned below. The data contains different devices for Windows. 
                 
                     1. Your Job is to convert the user question to SQL Query (Follow Microsoft SQL server SSMS syntax.). You have to give the query so that it can be used on Microsoft SQL server SSMS.You have to only return query as a result.
-                    2. There is only one table with table name Devices_Sentiment_Data where each row is a user review. The table has 10 columns, they are-
-                        Review: Review of the Copilot Product and Competitors of Copilot
+                    2. There is only one table with table name Devices_Sentiment_Data where each row is a user review. The table has 16+ columns, they are-
+                        Review: User reviews of laptops that reflect their opinions across a variety of key aspects and features of the device.
                         Data_Source: From where is the review taken. It contains different retailers - It contains following values : [chinatechnews, DigitalTrends, Engadget, clubic, g2.com, gartner, JP-ASCII, Jp-Impresswatch, Itmedia, LaptopMag, NotebookCheck, PCMag, TechAdvisor, TechRadar, TomsHardware, TechCrunch, Verge, ZDNET, PlayStore, App Store, AppStore, Reddit, YouTube, Facebook, Instagram, X, VK, Forums, News, Print, Blogs/Websites, Reviews, Wordpress, Podcast, TV, Quora, LinkedIn, Videos]
                         Geography: From which Country or Region the review was given. It contains different Geography.
                                    list of Geographies in the table - Values in this column 
@@ -856,143 +1072,131 @@ def get_conversational_chain_quant_classify2_devices():
                         Title: What is the title of the review
                         Review_Date: The date on which the review was posted
                         Product: Corresponding product for the review. It contains following values: "Windows 10" and "Windows 11".
-                        
-                        Product_Family: Which version or type of the corresponding Product was the review posted for. Different Product Names  - It contains following Values - ['ASUS ROG ZEPHYRUS G16 16', 'HP OMEN TRANSCEND 14',
-       'LENOVO LEGION PRO 5I 16', 'ASUS ROG STRIX SCAR 18',
-       'ASUS VIVOBOOK PRO 16', 'ASUS ROG ZEPHYRUS G14 14',
-       'LENOVO SLIM 7I 16', 'ASUS ZENBOOK 14', 'DELL G16 16',
-       'ASUS ROG STRIX 18', 'RAZER BLADE 16', 'MSI PRESTIGE 16',
-       'HP LAPTOP 14', 'DELL G15 15', 'HP SPECTRE X360 16', 'HP OMEN 14',
-       'RAZER BLADE 14', 'HP SPECTRE X360 14', 'HP PAVILION 14',
-       'LENOVO V15 15', 'HP G10 15', 'LENOVO THINKPAD E16 16', 'HP G9 15',
-       'LENOVO V14 14', 'LENOVO IDEAPAD 1 14', 'LENOVO THINKPAD P17 17',
-       'HP LAPTOP 17', 'SAMSUNG GALAXY BOOK3 360 15',
-       'LENOVO IDEAPAD SLIM 3 15', 'ACER ASPIRE 5 15',
-       'DELL ALIENWARE X16 16', 'ASUS ROG STRIX G17 17',
-       'ASUS TUF DASH 15', 'ACER ASPIRE VERO 14',
-       'MICROSOFT SURFACE LAPTOP 4 15', 'LENOVO IDEAPAD 1 15',
-       'HP LAPTOP 15', 'LENOVO IDEAPAD 3 15',
-       'MICROSOFT SURFACE LAPTOP GO 3 12', 'ASUS ZENBOOK DUO 14',
-       'HP STREAM 14', 'ASUS LAPTOP 15', 'HP PAVILION 15',
-       'DELL INSPIRON 3000 15', 'LENOVO SLIM 7 PRO X 14', 'LG GRAM 17',
-       'ACER SWIFT GO 14', 'MSI STEALTH 16', 'MSI TITAN 18',
-       'ASUS TUF GAMING F15 15', 'DELL ALIENWARE M18 18',
-       'ASUS VIVOBOOK 15', 'DELL PRECISION 3000 15', 'HP ENVY X360 15',
-       'ASUS ZENBOOK 14X 14', 'HP OMEN TRANSCEND 16', 'HP ENVY 17T 17',
-       'ASUS ROG STRIX G16 16', 'HP ENVY 16', 'HP VICTUS 15',
-       'LENOVO IDEAPAD 14', 'MICROSOFT SURFACE LAPTOP 15',
-       'LENOVO THINKPAD YOGA L13 13', 'ASUS ROG STRIX G15 15',
-       'ASUS ZENBOOK PRO 14X 14', 'RAZER BLADE GAMING 15',
-       'HP PAVILION 17', 'ASUS ROG STRIX G17  17',
-       'ASUS TUF GAMING A15 15', 'MSI GAMING CYBORG 15',
-       'ACER PREDATOR HELIOS 16', 'ASUS TUF GAMING A17 17',
-       'ACER NITRO 5 15', 'ASUS VIVOBOOK FLIP 16',
-       'LENOVO THINKPAD P14S 14', 'DELL XPS 13', 'ASUS ROG FLOW Z13 13',
-       'MSI THIN GAMING GF63 15', 'DELL INSPIRON 15',
-       'MICROSOFT SURFACE LAPTOP GO 12', 'LENOVO IDEAPAD 3I 15',
-       'LENOVO LAPTOP 15', 'LENOVO LEGION PRO 7 16',
-       'ASUS ROG ZEPHYRUS M16 16', 'LENOVO YOGA 7I 14',
-       'SAMSUNG GALAXY BOOK4 PRO 14', 'HP ENVY X360 16',
-       'ASUS ZENBOOK PRO 14', 'LENOVO THINKBOOK G6 16',
-       'LENOVO THINKPAD X1 CARBON 14', 'SAMSUNG GALAXY BOOK2 PRO 360 13',
-       'MICROSOFT SURFACE LAPTOP STUDIO 14', 'LENOVO THINKPAD YOGA X1 14',
-       'SAMSUNG GALAXY BOOK4 PRO 16', 'MICROSOFT SURFACE LAPTOP GO 2 12',
-       'DELL INSPIRON 14', 'HP ENVY X360 14', 'MICROSOFT SURFACE GO 13',
-       'HP OMEN  15', 'DELL INSPIRON 3000  15', 'LENOVO IDEAPAD  15',
-       'LENOVO SLIMPRO 9I 14', 'DELL INSPIRON 16',
-       'HP OMEN GAMING LAPTOP', 'ASUS VIVOBOOK 16', 'HP ENVY 2',
-       'HP ENVY  17', 'ASUS ROG FLOW 16', 'ASUS TUF GAMING A16 16',
-       'ASUS ROG GAMING 14', 'LENOVO LOQ 15', 'LENOVO YOGA 7 16',
-       'LENOVO SLIM PRO 14', 'LENOVO YOGA 6 13', 'LENOVO YOGA 7I 16',
-       'LENOVO YOGA BOOK 9', 'LENOVO IDEAPAD 15',
-       'SAMSUNG GALAXY BOOK 3 360 15', 'MICROSOFT SURFACE LAPTOP 5 13',
-       'MICROSOFT SURFACE PRO 9 13', 'MICROSOFT SURFACE LAPTOP 5 15',
-       'SAMSUNG GALAXY BOOK 2 PRO 360 15',
-       'MICROSOFT SURFACE PRO 7 PLUS 12', 'MICROSOFT SURFACE LAPTOP 4 13',
-       'LENOVO IDEAPAD 1  14', 'ALIENWARE M16 16', 'DELL XPS 15',
-       'HP OMEN 16', 'ASUS VIVOBOOK 14', 'LENOVO YOGA 9I 14',
-       'SAMSUNG GALAXY BOOK3 PRO 16', 'SAMSUNG GALAXY BOOK 3 PRO 360 16',
-       'ACER ASPIRE 3 15', 'HP PAVILION X360 14',
-       'MICROSOFT SURFACE STUDIO 2 14', 'HP STREAM 11',
-       'ASUS VIVOBOOK S 15', 'LENOVO IDEAPAD 16', 'ASUS VIVOBOOK 17',
-       'HP LAPTOP  17', 'ASUS ROG ZEPHYRUS 16',
-       'SAMSUNG GALAXY BOOK3 ULTRA 16', 'DELL INSPIRON 3000 14',
-       'ACER PREDATOR HELIOS 18', 'LENOVO THINKPAD X1 14',
-       'ACER NITRO 17', 'MICROSOFT SURFACE GO LAPTOP 3 12',
-       'MSI STEALTH 14', 'ASUS PROART STUDIOBOOK 16',
-       'ASUS ROG ZEPHYRUS 14', 'ASUS ROG 16', 'LENOVO GAMING LAPTOP',
-       'SAMSUNG GALAXY BOOK 2 PRO 13', 'ASUS VIVOBOOK  16',
-       'HP NOTEBOOK 15', 'HP LAPTOP  15', 'DELL INSPIRON 5000  16',
-       'MICROSOFT SURFACE GO 2 10', 'DELL INSPIRON 7000 14 PLUS',
-       'ASUS TUF A16 16', 'LENOVO LEGION 5  14', 'ASUS LAPTOP 11',
-       'LENOVO LEGION SLIM 5 16', 'MSI BRAVO 15',
-       'ACER PREDATOR HELIOS NEO 16', 'LENOVO LEGION 16',
-       'SAMSUNG GALAXY TAB S7 FE 12', 'ACER ASPIRE 1 15',
-       'ASUS TUF GAMING A 17', 'DELL ALIENWARE  16',
-       'SAMSUNG GALAXY BOOK 3 360 13', 'LENOVO IDEAPAD 3I 14',
-       'ASUS BR1100 11', 'LENOVO IDEAPAD 3 14', 'ACER ASPIRE VERO 15',
-       'LENOVO YOGA 9I 13', 'MICROSOFT SURFACE LAPTOP STUDIO2 13',
-       'ASUS ZENBOOK PRO DUO 15', 'LENOVO WEI 9 PRO  16',
-       'HP ENVY X360  15', 'ASUS ROG FLOW X13', 'LENOVO WEI 7 PRO  14',
-       'ASUS TUF GAMING 15', 'HP SPECTRE X360 13',
-       'MICROSOFT SURFACE GO 3 10', 'SAMSUNG GALAXY ULTRA 16',
-       'ASUS VIVOBOOK PRO 15', 'ASUS VIVOBOOK PRO 16X  16',
-       'ACER PREDATOR HELIOS 300 15', 'ASUS ROG STRIX G 17',
-       'LENOVO IDEAPAD FLEX 5 14', 'ASUS L210 11',
-       'LENOVO IDEAPAD GAMING 3 15', 'ASUS ROG STRIX G 16',
-       'LENOVO IDEAPAD 1I 14', 'HP ENVY 17', 'LENOVO IDEAPAD 3 17',
-       'ASUS ROG ZEPHYRUS G14  14', 'LENOVO FLEX 5 14',
-       'MICROSOFT SURFACE PRO 8 13', 'ACER SWIFT EDGE 16',
-       'ASUS ROG FLOW X13 13', 'ALIENWARE M18 18',
-       'ASUS TUF GAMING A15  15', 'LENOVO LEGION PRO 7I 16',
-       'ASUS VIVOBOOK GO 15', 'ACER SWIFT 3 14', 'ASUS ROG STRIX 17',
-       'MSI CYBORG 15', 'HP STREAM  14', 'ASUS VIVOBOOK 11',
-       'DELL G15 5000 15', 'SAMUSNG GALAXY BOOK 3 PRO 14',
-       'DELL INSPIRON 7000 2-IN-1 16', 'MSI GAMING LAPTOP 16',
-       'MSI STEALTH 17', 'MSI GAMING 15', 'DELL ALIENWARE M16 16',
-       'LENOVO IDEAPAD FLEX 5  14', 'ASUS TUF GAMING F15',
-       'LENOVO IDEAPAD FLEX 5 16', 'LENOVO LAPTOP 14',
-       'MSI GAMINGTHIN 15', 'ASUS ROG ZEPHYRUS DUO 16', 'ACER SWIFT X 14',
-       'MSI GF63 THIN 15', 'MICROSOFT SURFACE PRO 7 12', 'LENOVO FLEX 11',
-       'LENOVO WEI 5 PRO  15', 'ASUS VIVOBOOK GO 14', 'ASUS VIVOBOOK  14',
-       'MSI KATANA 15', 'HP LAPTOP 17T 17', 'ASUS VIVOBOOK GO 12',
-       'ASUS L510 15', 'MICROSOFT SURFACE GO 10', 'DELL INSPRION 3000 11',
-       'ASUS ZENBOOK PRO 15', 'DELL ALIENWARE M15 R7 15',
-       'HP ENVY DESKTOP', 'ASUS ZENBOOK DUO 15', 'LG GRAM 16',
-       'ASUS ROG STRIX SCAR 15', 'ASUS TUF GAMING F17 17', 'MSI SWORD 15',
-       'ACER NITRO 5 17', 'DELL XPS 17', 'LENOVO LEGION 5 15',
-       'RAZER GAMING LAPTOP 18', 'ASUS VIVOBOOK PRO  16',
-       'DELL INSPIRON 5000 14', 'SAMSUNG GALAXY BOOK3 15',
-       'HP ELITEBOOOK G7 14', 'LENOVO YOGA C740 15',
-       'LENOVO YOGA SLIM 7 16', 'LENOVO SLIM 7 PRO 14', 'LG GRAM 14',
-       'HP SPECTRE 17', 'ASUS ZENBOOK PRO DUO 14',
-       'ASUS ROG ZEPHYRUS G16  16', 'HP VICTUS 16', 'MSI SUMMIT FLIP 14',
-       'ASUS ZENBOOK PRO 17', 'ACER NITRO 16', 'LENOVO THINKPAD T16 16',
-       'ASUS ZENBOOK S 13', 'MSI RAIDER 17', 'ASUS ROG STRIX SCAR 16',
-       'MSI VECTOR 16', 'RAZER BLADE 15', 'DELL ALIENWARE M17 R5 17',
-       'DELL XPS PLUS 13', 'LENOVO GAMING DESKTOP',
-       'ASUS ROG FLOW X16 16', 'HP STREAM  17', 'ASUS ZENBOOK FLIP 14',
-       'RAZER BLADE 18', 'MSI THIN GF63 15', 'ASUS VIVOBOOK PRO 16X 16',
-       'ASUS VIVOBOOK FLIP 14', 'ASUS VIVOBOOK PRO X 16',
-       'DELL INSPIRON 5620 DESKTOP', 'LENOVO 300W 3 11',
-       'ASUS ZENBOOK 15', 'ACER ASPIRE 3 14',
-       'SAMSUNG GALAXY BOOK2 PRO 15', 'ASUS VIVOBOOK PRO 14',
-       'ASUS VIVOBOOK PRO 15X', 'SAMSUNG GALAXY BOOK 2 PRO 15',
-       'MSI GV15 15', 'ASUS ROG STRIX G15  15', 'LENOVO IDEAPAD 3  15',
-       'LG GRAM 15', 'SAMSUNG GALAXY BOOK3 16', 'LG GRAM 17Z95P',
-       'LENOVO IDEAPAD FLEX 5 15', 'ASUS ROG STRIX G16   16',
-       'LENOVO THINKPAD YOGA 11E', 'MSI CREATOR M 16',
-       'LENOVO IDEAPAD 5I PRO 16', 'ASUS E410 14',
-       'DELL INSPIRON 15 3000', 'SAMSUNG GALAXY BOOK3 PRO 15',
-       'DELL INSPIRON 3501 15', 'ASUS VIVOBOOK 13',
-       'MICROSOFT SURFACE LAPTOP 3 13', 'LENOVO IDEAPAD 5I 15',
-       'DELL ALIENWARE X15 R2 15', 'ASUS VIVOBOOK PRO 15X 15',
-       'SAMSUNG GALAXY BOOK GO 14']
+                        OEM: Manufacturer of the device, containing values such as HP, Dell, Lenovo, Microsoft, Apple, etc.       
+                        Chassis: Classification of the device based on its physical design and build, containing values such as 'Premium Mobility Lower', 'Mainstream Upper', 'Premium Mobility Upper', 'Creation Upper', 'Desktop AIO', 'Enterprise Fleet Lower' etc...  
+                        OSType: The operating system type of the product, such as "Windows 11", "Windows 10", "Linux", or "ChromeOS".  
+                        Product_Family: Which version or type of the corresponding Product was the review posted for. Different Product Names  - It contains following Values - [['APPLE MACBOOK PRO 14', 'LENOVO YOGA SLIM 7 AURA 15',
+       'APPLE IPAD AIR 11', 'APPLE MACBOOK AIR M3 13',
+       'APPLE IPAD AIR 13', 'APPLE IMAC | AIO 24',
+       'APPLE MACBOOK AIR M2 13', 'APPLE MACBOOK AIR M3 15',
+       'SAMSUNG GALAXY BOOK 4 EDGE 15', 'LENOVO IDEAPAD 3 15',
+       'ASUS VIVOBOOK S 16', 'APPLE IPAD 10', 'HP LAPTOP 15',
+       'HP LAPTOP 14', 'SAMSUNG GALAXY BOOK5 PRO 16',
+       'APPLE  MACBOOK AIR M2 13', 'ASUS VIVOBOOK GO 15',
+       'ACER ASPIRE 5 15', 'APPLE MAC MINI DESKTOP', 'APPLE IPAD 10 10',
+       'LENOVO LENOVO LAPTOP 15', 'ASUS  ZENBOOK 14',
+       'MICROSOFT SURFACE LAPTOP 7 13', 'ACER  ASPIRE 5 15',
+       'ACER ASPIRE 3 15', 'HP PAVILION 15', 'APPLE IPAD MINI 8',
+       'HP CHROMEBOOK X360 14', 'HP LAPTOP 17', 'ACER CHROMEBOOK 15',
+       'APPLE MACBOOK PRO 16', 'APPLE IPAD PRO 11',
+       'MICROSOFT SURFACE PRO 11 13', 'ACER CHROMEBOOK 3 15',
+       'ASUS ZENBOOK 14', 'ASUS VIVOBOOK 15', 'DELL INSPIRON 3000 15',
+       'LENOVO IDEAPAD 1 15', 'ASUS TUF GAMING 16',
+       'LENOVO  IDEAPAD SLIM 3 15', 'MICROSOFT SURFACE LAPTOP 7 15',
+       'HP  HP 15 SERIES 15', 'HP ENVY X360 14',
+       'APPLE MACBOOK AIR M1 13', 'SAMSUNG GALAXY BOOK 3 360 15',
+       'ASUS  VIVOBOOK GO 15', 'ASUS  TUF GAMING 15', 'ACER  SWIFT GO 14',
+       'ACER  ASPIRE 3 14', 'SAMSUNG GALAXY BOOK 5 PRO 360 16',
+       'LENOVO THINKPAD X1 14', 'ASUS ROG ZEPHYRUS G16 16', 'HP ENVY 17',
+       'APPLE  MACBOOK AIR M3  13', 'ASUS VIVOBOOK 16',
+       'HP PAVILION X360 14', 'ASUS  VIVOBOOK 15', 'ASUS VIVOBOOK S15 15',
+       'LENOVO IDEAPAD 5X 14', 'HP  VICTUS 15', 'ASUS TUF GAMING 15',
+       'LENOVO  LENOVO LAPTOP 15', 'HP CHROMEBOOK 14',
+       'APPLE IPAD PRO 13', 'ASUS TUF GAMING A15 15',
+       'HP  HP 14 SERIES 14', 'HP  OMEN 16', 'LENOVO  LOQ 15',
+       'LENOVO LOQ 15', 'ASUS PROART PZ 13', 'HP SPECTRE X360 16',
+       'LENOVO YOGA PRO 7 14', 'SAMSUNG GALAXY BOOK 4 EDGE 16',
+       'HP UNDEFINED | AIO 21', 'LENOVO IDEAPAD 5 14', 'APPLE  IPAD 10',
+       'ASUS ZENBOOK S 14', 'LENOVO YOGA 7 16', 'DELL INSPIRON 7000 14',
+       'ASUS ROG STRIX G15 15', 'ASUS ROG ZEPHYRUS 16',
+       'ASUS VIVOBOOK S 15', 'HP ENVY 16', 'ASUS VIVOBOOK 14',
+       'LENOVO  IDEAPAD SLIM 5 14', 'ASUS VIVOBOOK S 14',
+       'ASUS ZENBOOK S 16', 'ASUS ZENBOOK UX340 14', 'MSI  MODERN 14',
+       'MICROSOFT SURFACE LAPTOP STUDIO 2 14',
+       'MICROSOFT SURFACE PRO 7 12', 'ASUS TUF GAMING 14',
+       'LENOVO YOGA SLIM 7X 14', 'DELL XPS 9000 13', 'DELL XPS 13',
+       'DELL INSPIRON 14 PLUS', 'SAMSUNG GALAXY BOOK5 PRO 360 16',
+       'APPLE MACBOOK AIR M2 15', 'LENOVO IDEAPAD 1 14',
+       'ASUS TUF GAMING A16 16', 'ASUS VIVOBOOK PRO 15',
+       'LENOVO THINKPAD T 14', 'HP ENVY X360 16', 'ASUS VIVOBOOK GO 14',
+       'SAMSUNG GALAXY BOOK5 PRO 14', 'HP OMNIBOOK X 14',
+       'HP ENVY X360 15', 'ASUS EXPERTBOOK P5', 'LENOVO  IDEAPAD 15',
+       'APPLE IPAD 9 10', 'APPLE IPAD MINI 6 8', 'APPLE IPAD PRO 4 11',
+       'APPLE IPAD PRO 6 12', 'APPLE IPAD AIR 5 10',
+       'APPLE MACBOOK PRO 13', 'HP PAVILION | AIO 27',
+       'HP UNDEFINED | AIO 23', 'HP CHROMEBOOK 15',
+       'DELL INSPIRON 7000 16', 'LENOVO YOGA 9I 14', 'LENOVO YOGA 7I 16',
+       'LENOVO IDEAPAD 1I 15', 'DELL INSPIRON | AIO 27',
+       'LENOVO YOGA 7 14', 'LENOVO YOGA 7I 14', 'ASUS PROART PX 13',
+       'ACER SWIFT 16 AI', 'ASUS CHROMEBOOK 14',
+       'MICROSOFT SURFACE GO LAPTOP 3 12',
+       'SAMSUNG GALAXY BOOK 4 EDGE 14', 'MICROSOFT SURFACE PRO 9 13',
+       'ACER  ASPIRE 3 15', 'ASUS TUF GAMING F15 15',
+       'APPLE  MACBOOK AIR M1 13', 'ASUS PROART 16',
+       'ASUS TUF GAMING A14 14', 'ASUS ZENBOOK S14 14',
+       'ASUS ROG ZEPHYRUS G14 14', 'ACER PREDATOR HELIOS NEO 16',
+       'DELL INSPIRON PLUS 14', 'ACER NITRO 5 15', 'ACER  ASPIRE 7 15',
+       'DELL  DELL G15 15', 'ASUS  VIVOBOOK 16', 'HP OMNIBOOK ULTRA 14',
+       'DELL ALIENWARE M16 16', 'ASUS ROG STRIX 18',
+       'ASUS ROG ZEPHYRUS G 16', 'HP OMNIBOOK ULTRA FLIP 14 ',
+       'HP VICTUS, HP VICTUS 15', 'ASUS PROART P16 16',
+       'ASUS PROART P 16', 'ASUS VIVOBOOK S14 14', 'DELL DELL G15 15',
+       'HP  PAVILION 14', 'MICROSOFT SURFACE LAPTOP 5 15',
+       'HP  VICTUS 16', 'MSI STEALTH A16 16', 'ASUS  VIVOBOOK PRO 15',
+       'ACER  PREDATOR HELIOS NEO 16', 'SAMSUNG GALAXY BOOK4 EDGE 16',
+       'MICROSOFT SURFACE LAPTOP STUDIO 14', 'DELL ALIENWARE M18 18',
+       'LENOVO IDEAPAD GAMING 3 15', 'LENOVO  THINKBOOK 16',
+       'HP  PAVILION PLUS 14', 'LENOVO  V15 15', 'HP  PAVILION 15',
+       'ACER SWIFT 3 14', 'APPLE IPAD PRO 12',
+       'MICROSOFT SURFACE LAPTOP GO 3 12', 'MICROSOFT SURFACE PRO 8 13',
+       'MICROSOFT SURFACE LAPTOP GO 2 12', 'ACER SWIFT 14',
+       'LENOVO  THINKBOOK 14', 'HUAWEI MATEBOOK D16 16',
+       'MICROSOFT SURFACE LAPTOP 5 13', 'MICROSOFT SURFACE BOOK 3 13',
+       'LENOVO IDEAPAD 3I 15', 'MICROSOFT SURFACE LAPTOP 4 13',
+       'ASUS ROG ZEPHYRUS 14', 'DELL XPS 15', 'DELL XPS PLUS 13',
+       'HP STREAM 17', 'LENOVO IDEAPAD 1  14', 'HP OMEN  15',
+       'ACER PREDATOR HELIOS 300 15', 'ASUS ROG ZEPHYRUS 15',
+       'ASUS ZENBOOK FLIP 15', 'ASUS ROG, ASUS ROG 16',
+       'ASUS ROG ZEPHYRUS M15 15', 'ASUS VIVOBOOK S16',
+       'MICROSOFT SURFACE LAPTOP 3 13', 'MICROSOFT SURFACE GO 2 10',
+       'MICROSOFT SURFACE PRO X 13', 'MICROSOFT SURFACE LAPTOP GO',
+       'MICROSOFT SURFACE GO 12', 'MICROSOFT SURFACE LAPTOP 4 15',
+       'MICROSOFT  SURFACE LAPTOP 4', 'MICROSOFT SURFACE GO 3 10',
+       'MICROSOFT SURFACE PRO 7 PLUS 12', 'MICROSOFT SURFACE BOOK 3 15',
+       'MICROSOFT SURFACE LAPTOP GO 12', 'MICROSOFT SURFACE PRO 7 PLUS',
+       'MICROSOFT SURFACE PRO 11', 'MICROSOFT SURFACE LAPTOP 7',
+       'MICROSOFT SURFACE LAPTOP 4', 'MICROSOFT SURFACE LAPTOP GO 2',
+       'MICROSOFT SURFACE LAPTOP 5', 'MICROSOFT SURFACE PRO 9',
+       'MICROSOFT SURFACE PRO 8', 'MICROSOFT SURFACE GO 2',
+       'MICROSOFT SURFACE GO 3', 'MICROSOFT SURFACE STUDIO',
+       'MICROSOFT SURFACE LAPTOP STUDIO', 'MICROSOFT SURFACE LAPTOP GO 3',
+       'MICROSOFT SURFACE PRO 7', 'MICROSOFT SURFACE GO',
+       'MICROSOFT SURFACE PRO X', 'LENOVO  YOGA SLIM 7 14',
+       'APPLE  IPAD AIR 11', 'APPLE  IPAD PRO 11',
+       'MICROSOFT  SURFACE LAPTOP 13', 'APPLE  MACBOOK PRO 14 14',
+       'HP  PAVILION PRO 14', 'LENOVO  XIAOXIN PRO 14',
+       'LENOVO  XIAOXIN PRO 16', 'ASUS TIANXUAN 5 PRO 16',
+       'HONOR  MAGICBOOK 14', 'LENOVO LEGION Y9000P 16',
+       'LENOVO LEGION Y7000P 16', 'LENOVO  LEGION R7000 15',
+       'DELL  DELL G16 16', 'LENOVO  LEGION Y7000 15',
+       'LENOVO  LEGION Y7000 16', 'LENOVO  LENOVO LAPTOP 14',
+       'HUAWEI  MATEBOOK 14', 'HUAWEI  MATEBOOK X PRO 14',
+       'ASUS  ADOLBOOK 14', 'APPLE  MACBOOK AIR M2 15',
+       'HUAWEI  MATEBOOK E 12', 'HUAWEI MATEBOOK D14 14',
+       'DELL  INSPIRON 5000 PRO 14', 'DELL  INSPIRON 5000 PRO 16',
+       'HP ZHAN 99 15', 'HP  OMEN 15', 'LENOVO  LEGION Y9000 16',
+       'LENOVO  XIAOXIN 16', 'HUAWEI MATEBOOK E GO 12',
+       'LENOVO  LEGION R9000 16', 'ASUS TIANXUAN DESKTOP', 'HP ZHAN X 14',
+       'LENOVO LEGION R9000  16', 'ACER  NITRO 15',
+       'ACER PREDAOR HELIOS NEO 16', 'LENOVO LEGION R7000  15',
+       'LENOVO THINKBOOK 14+ 14', 'LENOVO THINKPAD PLUS 16']
                         Sentiment: What is the sentiment of the review. It contains following values: 'positive', 'neutral', 'negative'.
                         Aspect: The review is talking about which aspect or feature of the product. It contains following values: 'Interface', 'Connectivity', 'Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility'.
                         Keywords: What are the keywords mentioned in the product
                         Review_Count - It will be 1 for each review or each row
                         Sentiment_Score - It will be 1, 0 or -1 based on the Sentiment.
+                        Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
                         
                 IMPORTANT : User won't exactly mention the exact Geography Names, Product Names, Product Families, Data Source name, Aspect names. Please make sure to change/correct to the values that you know from the context and then provide SQL Query.
 
@@ -1058,8 +1262,139 @@ IMPORTANT : If a user is asking about which is best/poor, everything should be b
                             FROM Devices_Sentiment_Data  
                             GROUP BY 'Y'
                             ORDER BY Distribution_PCT DESC
-        
+                            
+                    8. If the user asks for MoM Net Sentiment Trend, use the following SQL format:
+                            SELECT 
+                                DATE(substr(Review_Date, 7, 4) || '-' || substr(Review_Date, 4, 2) || '-01') AS Year_Month,  
+                                (SUM(Sentiment_Score) / SUM(Review_Count)) * 100 AS Net_Sentiment, 
+                                SUM(Review_Count) AS REVIEW_COUNT
+                            FROM Devices_Sentiment_Data
+                            WHERE OSType LIKE '%Windows%'
+                            AND Review_Date IS NOT NULL
+                            GROUP BY Year_Month  
+                            ORDER BY Year_Month ASC;
+                            
+                    9. Net Sentiment of Copilot+ PC
+                            SELECT 
+                                [Copilot+ PC], 
+                                (SUM(Sentiment_Score) / SUM(Review_Count)) * 100 AS Net_Sentiment, 
+                                SUM(Review_Count) AS Review_Count
+                            FROM Devices_Sentiment_Data
+                            WHERE [Copilot+ PC] = 'Yes'
+                            GROUP BY [Copilot+ PC]
+                            ORDER BY Review_Count DESC;
 
+
+                            
+                    10. Total Review Count of Copilot+ PC
+                            SELECT 
+                                [Copilot+ PC], 
+                                SUM(Review_Count) AS Total_Reviews
+                            FROM Devices_Sentiment_Data
+                            WHERE [Copilot+ PC] = 'Yes'
+                            GROUP BY [Copilot+ PC]
+                            ORDER BY Total_Reviews DESC;
+
+                            
+                    11. Review Distribution by Copilot+ PC
+                            SELECT 
+                                [Copilot+ PC], 
+                                SUM(Review_Count) * 100.0 / 
+                                (SELECT SUM(Review_Count) FROM Devices_Sentiment_Data WHERE [Copilot+ PC] = 'Yes') AS Review_Distribution
+                            FROM Devices_Sentiment_Data
+                            WHERE [Copilot+ PC] = 'Yes'
+                            GROUP BY [Copilot+ PC]
+                            ORDER BY Review_Distribution DESC;
+                            DESC;
+                            
+                    12. Net Sentiment of Non Copilot+ PCs
+                            SELECT 
+                                [Copilot+ PC], 
+                                (SUM(Sentiment_Score) / SUM(Review_Count)) * 100 AS Net_Sentiment, 
+                                SUM(Review_Count) AS Review_Count
+                            FROM Devices_Sentiment_Data
+                            WHERE [Copilot+ PC] = 'No'
+                            GROUP BY [Copilot+ PC]
+                            ORDER BY Review_Count DESC;
+                            
+                    13. What is the net sentiment of Surface Pros with and without Copilot+ PCs
+                        SELECT 
+                          'SURFACE PRO' AS DEVICE_NAME,
+                          [Copilot+ PC] AS [COPILOT+ PC],
+                          ((SUM(SENTIMENT_SCORE)) / (SUM(Review_Count))) * 100 AS NET_SENTIMENT,
+                          SUM(Review_Count) AS Review_Count
+                        FROM 
+                          Devices_Sentiment_Data
+                        WHERE 
+                          PRODUCT_FAMILY LIKE '%SURFACE PRO%'
+                        GROUP BY 
+                          [Copilot+ PC]
+                        ORDER BY 
+                          Review_Count DESC;
+                          
+                          
+                    14. What is the net sentiment of Dell XPS with and without Copilot+ PCs
+                        SELECT 
+                          'DELL XPS' AS DEVICE_NAME,
+                          [Copilot+ PC] AS [COPILOT+ PC],
+                          ((SUM(SENTIMENT_SCORE)) / (SUM(Review_Count))) * 100 AS NET_SENTIMENT,
+                          SUM(Review_Count) AS Review_Count
+                        FROM 
+                          Devices_Sentiment_Data
+                        WHERE 
+                          PRODUCT_FAMILY LIKE '%DELL XPS%'
+                        GROUP BY 
+                          [Copilot+ PC]
+                        ORDER BY 
+                          Review_Count DESC;
+                          
+                    15. Give the net Sentiment and Review Count for Microsoft Surface Pro across Copilot+ PC and Non Copilot+ PC:
+                        SELECT 
+                            [Copilot+ PC], 
+                            ((SUM(Sentiment_Score)) / (SUM(Review_Count))) * 100 AS Net_Sentiment,
+                            SUM(Review_Count) AS Review_Count
+                        FROM Devices_Sentiment_Data
+                        WHERE Product_Family LIKE '%MICROSOFT SURFACE PRO%'
+                          AND [Copilot+ PC] IN ('Yes','No')
+                        GROUP BY [Copilot+ PC]
+                        ORDER BY Review_Count DESC;
+                        
+                    16. What is the overall net sentiment for Surface Pro 11 Copilot+ PC with older Surface Pro devices?
+                        SELECT 
+                          'SURFACE PRO' AS DEVICE_NAME,
+                          [Copilot+ PC] AS [COPILOT+ PC],
+                          ((SUM(SENTIMENT_SCORE)) / (SUM(Review_Count))) * 100 AS NET_SENTIMENT,
+                          SUM(Review_Count) AS Review_Count
+                        FROM 
+                          Devices_Sentiment_Data
+                        WHERE 
+                          PRODUCT_FAMILY LIKE '%SURFACE PRO%'
+                        GROUP BY 
+                          [Copilot+ PC]
+                        ORDER BY 
+                          Review_Count DESC;
+                          
+                    17. What is the overall net sentiment for Surface Pro 11 Copilot+ PC with older Surface Pro devices?
+                        SELECT 
+                          'LENOVO YOGA' AS DEVICE_NAME,
+                          [Copilot+ PC] AS [COPILOT+ PC],
+                          ((SUM(SENTIMENT_SCORE)) / (SUM(Review_Count))) * 100 AS NET_SENTIMENT,
+                          SUM(Review_Count) AS Review_Count
+                        FROM 
+                          Devices_Sentiment_Data
+                        WHERE 
+                          PRODUCT_FAMILY LIKE '%LENOVO YOGA%'
+                        GROUP BY 
+                          [Copilot+ PC]
+                        ORDER BY 
+                          Review_Count DESC;
+
+
+
+                    NOTE: Use case-insensitive comparisons for string values (e.g., convert both sides using LOWER() or use values like 'Yes', 'No' with exact case).
+
+                            Match the column name exactly as it is in the dataset: Column name: [Copilot+ PC] (not [COPILOT+ PC])
+                            
                     Important: While generating SQL query to calculate net_sentiment across column 'X' and 'Y', if 'Y' has less distinct values, keep your response like this - SELECT 'Y','X', ((SUM(Sentiment_Score)) / (SUM(Review_Count))) * 100 AS Net_Sentiment, SUM(Review_Count) AS Review_Count FROM Devices_Sentiment_Data GROUP BY 'Y','X'
                     
                     IMPORTANT: Always replace '=' operator with LIKE keyword.
@@ -1096,27 +1431,21 @@ IMPORTANT : If a user is asking about which is best/poor, everything should be b
         print(f"Error in get_conversational_chain_quant_classify2_devices()")
         return err
 
-def query_quant_classify2_devices(user_question, vector_store_path="faiss_index_Windows_116k"):
+def query_quant_classify2_devices(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
-        # Initialize the embeddings model
-        #st.write("inside query_quant_classify2_devices")
+        if "Devices_Sentiment_Data" in st.session_state:
+            globals()["Devices_Sentiment_Data"] = st.session_state["Devices_Sentiment_Data"]
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
-        
-        # Load the vector store with the embeddings model
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        
-        # Rest of the function remains unchanged
         chain = get_conversational_chain_quant_classify2_devices()
-        #st.write(chain)
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         SQL_Query = response["output_text"]
-        #st.write(SQL_Query)
+        print(SQL_Query)
         SQL_Query = convert_top_to_limit(SQL_Query)
         SQL_Query = process_tablename_devices(SQL_Query,"Devices_Sentiment_Data")
-        #st.write(SQL_Query)
-        
-        #Extract required filters applied on Copilot_Sentiment_Data dataframe
+        print("Hello")
+        print(SQL_Query)
         sql_list=list(SQL_Query.split('LIKE'))
         col_names=[]
         filters=[]
@@ -1143,12 +1472,9 @@ def query_quant_classify2_devices(user_question, vector_store_path="faiss_index_
             pass
         
         data = ps.sqldf(SQL_Query, globals())
-        #st.write(data)
         data_1 = data
+        print(data)
         html_table = data.to_html(index=False)
-    #     return html_table
-        
-        #Calculate overall net-sentiment and review_count based on filtered data
         try:
             data2=Devices_Sentiment_Data.copy()
             data2.columns = data2.columns.str.upper()
@@ -1183,8 +1509,6 @@ def query_quant_classify2_devices(user_question, vector_store_path="faiss_index_
 def get_conversational_chain_detailed_summary2_devices():
     global model
     try:
-        #st.write("hi-inside summary func")
-        #st.write(overall_net_sentiment,overall_review_count)
         prompt_template = """
 
                 Important: You are provided with an input dataset. Also you have an Impact column with either "HIGH" or "LOW" values.
@@ -1244,9 +1568,7 @@ def get_conversational_chain_detailed_summary2_devices():
                   - Recognizing abbreviations for country names (e.g., ‘DE’ for Germany, ‘USA’or 'usa' or 'US' for the United States of America) and expanding them to their full names for clarity.
                   - Utilizing context and available data columns to infer the correct meaning and respond appropriately to user queries involving variations in product family names or geographical references]
                  Important: Generate outputs using the provided dataset only, don't use pre-trained information to generate outputs\n
-          \nFollowing is the previous conversation from User and Response, use it to get context only:""" + str(st.session_state.context_history_devices) + """\n
-                Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n. When user asks uses references like "from previous response", ":from above response" or "from above", Please refer the previous conversation and respond accordingly.\n
-                
+             
                   Context:\n {context}?\n
                   Question: \n{question}\n
 
@@ -1265,7 +1587,7 @@ def get_conversational_chain_detailed_summary2_devices():
         print(f"Error in get_conversational_chain_detailed_summary2_devices().")
         return err
     
-def query_detailed_summary2_devices(dataframe_as_dict,user_question, history, vector_store_path="faiss_index_Windows_116k"):
+def query_detailed_summary2_devices(dataframe_as_dict,user_question, history, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -1273,8 +1595,9 @@ def query_detailed_summary2_devices(dataframe_as_dict,user_question, history, ve
         docs = vector_store.similarity_search(user_question)
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
-    except:
-        print(f"Error in query_detailed_summary2_devices()")
+    except Exception as e:
+        print(f"Error in query_detailed_summary2_devices(): {e}")
+
         err = generate_chart_insight_llm(dataframe_as_dict)
         return err    
     
@@ -1316,7 +1639,6 @@ def generate_chart_insight_llm_devices(user_question):
 
 def quantifiable_data_devices(user_question):
     try:
-        #st.write("correct_func")
         response = query_quant_classify2_devices(user_question)
         
         return response
@@ -1337,7 +1659,7 @@ def get_conversational_chain_quant_classify2_sales():
 #################################################################################################################################################################################################################################################
         prompt_template = """
     1. Your Job is to convert the user question to SQL Query (Follow Microsoft SQL server SSMS syntax.). You have to give the query so that it can be used on Microsoft SQL server SSMS.You have to only return query as a result.
-    2. There is only one table with table name RCR_Sales_Data where each row has. The table has 20 columns, they are:
+    2. There is only one table with table name RCR_Sales_Data where each row has. The table has 16 columns, they are:
         Month: Contains dates for the records
         Country: From where the sales has happened. It contains following values: 'Turkey','India','Brazil','Germany','Philippines','France','Netherlands','Spain','United Arab Emirates','Czech Republic','Norway','Belgium','Finland','Canada','Mexico','Russia','Austria','Poland','United States','Switzerland','Italy','Colombia','Japan','Chile','Sweden','Vietnam','Saudi Arabia','South Africa','Peru','Indonesia','Taiwan','Thailand','Ireland','Korea','Hong Kong SAR','Malaysia','Denmark','New Zealand','China' and 'Australia'.
         Geography: From which Country or Region the review was given. It contains following values: 'Unknown', 'Brazil', 'Australia', 'Canada', 'China', 'Germany','France'.
@@ -1347,13 +1669,14 @@ def get_conversational_chain_quant_classify2_sales():
         SCREEN_SIZE_INCHES: Screen Size of the Device.
         PRICE_BRAND_USD_3: Band of the price at which the device is selling. It contains following values: '0-300', '300-500', '500-800' and '800+.
         OS_VERSION: Operating System version intall on the device. It contains following values: 'Windows 11', 'Chrome', 'Mac OS'.
-        Operating_System_Summary: Operating System installed on the device. This is at uber level. It contains following values: 'Windows', 'Google OS', 'Apple OS'.
+        Operating_System_Summary: Operating System installed on the device. This is at uber level. It contains following values: 'Windows OS', 'Google OS', 'Apple OS'.
         Sales_Units: Number of Devices sold for that device in a prticular month and country.
         Sales_Value: Revenue Generated by the devices sold.
         Series: Family of the device such as IdeaPad 1, HP Laptop 15 etc.
         Specs_Combination: Its contains the combination of Series, Processor, RAM , Storage and Screen Size. For Example: SURFACE LAPTOP GO | Ci5 | 8 GB | 256.0 SSD | 12" .
         Chassis Segment: It contains following values: 'SMB_Upper','Mainstream_Lower','SMB_Lower','Enterprise Fleet_Lower','Entry','Mainstream_Upper','Premium Mobility_Upper','Enterprise Fleet_Upper','Premium Mobility_Lower','Creation_Lower','UNDEFINED','Premium_Mobility_Upper','Enterprise Work Station','Unknown','Gaming_Musclebook','Entry_Gaming','Creation_Upper','Mainstrean_Lower'
-        
+        Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
     3.  When Asked for Price Range you have to use ASP Column to get minimum and Maxium value. Do not consider Negative Values. Also Consider Sales Units it shouldn't be 0.
         Exaple Query:
             SELECT MIN(ASP) AS Lowest_Value, MAX(ASP) AS Highest_Value
@@ -1398,7 +1721,7 @@ def get_conversational_chain_quant_classify2_sales():
            GROUP BY MONTH
            
     10. If asked about similar compete devices.
-    Example Query:
+        Example Query:
             SQL = WITH DeviceNameASP AS (
                     SELECT
                         'Device Name' AS Series,
@@ -1449,19 +1772,71 @@ def get_conversational_chain_quant_classify2_sales():
                     RankedCompetitors
                 WHERE
                     rank <= 3;
+                    
+    11. Price Range (ASP) for Copilot+ PCs - Surface Laptop 6
+        Example Query:
+                SELECT 
+                    MIN(ASP) AS Lowest_Value, 
+                    MAX(ASP) AS Highest_Value
+                FROM 
+                    RCR_Sales_Data
+                WHERE 
+                    Series = 'Surface Laptop 6'
+                    AND [Copilot+ PC] = 'Yes'
+                    AND ASP >= 0
+                    AND Sales_Units <> 0;
+                    
+    12. Total Sales Units in Thousands for Copilot+ PCs
+        Example Query:
+                SELECT 
+                    (SUM(Sales_Units) / 1000) AS "TOTAL SALES UNITS (K)"
+                FROM 
+                    RCR_Sales_Data
+                WHERE 
+                    [Copilot+ PC] = 'Yes';
+    
+    13. Sales Units by Country for Copilot+ PCs
+        Example Query:
+            SELECT 
+                Country, 
+                (SUM(Sales_Units) / 1000) AS "Sales_Units (In Thousands)"
+            FROM 
+                RCR_Sales_Data
+            WHERE 
+                [Copilot+ PC] = 'Yes'
+            GROUP BY 
+                Country
+            ORDER BY 
+                "Sales_Units (In Thousands)" DESC;
+                
+    13. Sales Units by Country for Non Copilot+ PCs
+        Example Query:
+            SELECT 
+                Country, 
+                (SUM(Sales_Units) / 1000) AS "Sales_Units (In Thousands)"
+            FROM 
+                RCR_Sales_Data
+            WHERE 
+                [Copilot+ PC] = 'No'
+            GROUP BY 
+                Country
+            ORDER BY 
+                "Sales_Units (In Thousands)" DESC;
 
-    11. If asked about dates or year SUBSTR() function instead of Year() or Month()
-    12. Convert numerical outputs to float upto 2 decimal point.
-    13. Always include ORDER BY clause to sort the table based on the aggregate value calculated in the query.
-    14. Always use 'LIKE' operator whenever they mention about any Country, Series. Use 'LIMIT' operator instead of TOP operator.Do not use TOP OPERATOR. Follow syntax that can be used with pandasql.
-    15. If you are using any field in the aggregate function in select statement, make sure you add them in GROUP BY Clause.
-    16. Make sure to Give the result as the query so that it can be used on Microsoft SQL server SSMS.
-    17. Always use LIKE function instead of = Symbol while generating SQL Query
-    18. Important: User can ask question about any categories including Country, OEMGROUP,OS_VERSION etc etc. Hence, include the in SQL Queryif someone ask it.
-    19. Important: Use the correct column names listed above. There should not be Case Sensitivity issue. 
-    20. Important: The values in OPERATING_SYSTEM_SUMMARY are ('Apple OS', 'Google OS') not ('APPLE OS', 'GOOGLE OS'). So use exact values. Not everything should be capital letters.
-    21. Important: You Response should directly starts from SQL query nothing else.
-    22. IMPORTANT: When asked about Average Selling Price for every month, always use AVG(ASP) as aggregation
+
+
+    14. If asked about dates or year SUBSTR() function instead of Year() or Month()
+    15. Convert numerical outputs to float upto 2 decimal point.
+    16. Always include ORDER BY clause to sort the table based on the aggregate value calculated in the query.
+    17. Always use 'LIKE' operator whenever they mention about any Country, Series. Use 'LIMIT' operator instead of TOP operator.Do not use TOP OPERATOR. Follow syntax that can be used with pandasql.
+    18. If you are using any field in the aggregate function in select statement, make sure you add them in GROUP BY Clause.
+    19. Make sure to Give the result as the query so that it can be used on Microsoft SQL server SSMS.
+    20. Always use LIKE function instead of = Symbol while generating SQL Query
+    21. Important: User can ask question about any categories including Country, OEMGROUP,OS_VERSION etc etc. Hence, include the in SQL Queryif someone ask it.
+    22. Important: Use the correct column names listed above. There should not be Case Sensitivity issue. 
+    23. Important: The values in OPERATING_SYSTEM_SUMMARY are ('Apple OS', 'Google OS') not ('APPLE OS', 'GOOGLE OS'). So use exact values. Not everything should be capital letters.
+    24. Important: You Response should directly starts from SQL query nothing else.
+    25. IMPORTANT: When asked about Average Selling Price for every month, always use AVG(ASP) as aggregation
     
                 Context:\n {context}?\n
                 Question: \n{question}\n
@@ -1486,8 +1861,10 @@ def get_conversational_chain_quant_classify2_sales():
         return err
 
 
-def query_quant_classify2_sales(user_question, vector_store_path="faiss_index_Windows_116k"):
+def query_quant_classify2_sales(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
+        if "RCR_Sales_Data" in st.session_state:
+            globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
         # Initialize the embeddings model
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         
@@ -1508,7 +1885,8 @@ def query_quant_classify2_sales(user_question, vector_store_path="faiss_index_Wi
         html_table = data.to_html(index=False)
     #     return html_table
         return data_1
-    except:
+    except Exception as e:
+        print(e)
         err = f"An error occurred while generating response for quantitative review summarization."
         print(f"Error in query_quant_classify2_sales() for {user_question}")
         return err    
@@ -1622,23 +2000,80 @@ def comparison_view(device1, device2):
         st.write(f"Unable to generate response for the input query. Please rephrase and try again, or contact the developer of the tool.")
         
         
+# def identify_devices(input_string):
+    # try:
+        # First, check if any device in the Sales Data and Sentiment data is exactly in the input string
+        # input_string = input_string.upper()
+        # devices_list_sentiment = list(Devices_Sentiment_Data['Product_Family'].unique())
+        # for device in devices_list_sentiment:
+            # if device in input_string:
+                # return device
+
+        # If no exact match is found, use fuzzy matching
+        # most_matching_device_sentiment = process.extractOne(input_string, devices_list_sentiment, scorer=fuzz.token_set_ratio)  
+
+        # Check the matching score
+        # if most_matching_device_sentiment[1] >= 60:
+            # return most_matching_device_sentiment[0]
+
+        # devices_list_sales = list(dev_mapping['SalesDevice'].unique())
+        # for device in devices_list_sales:
+            # if device == "UNDEFINED":
+                # continue
+            # elif device in input_string:
+                # return device
+
+        # most_matching_device_sales = process.extractOne(input_string, devices_list_sales, scorer=fuzz.token_set_ratio)
+
+        # if most_matching_device_sales[1] >= 60:
+            # return most_matching_device_sales[0]
+        # else:
+            # return "Device not available"
+    # except Exception as e:
+        # print(e)
+        # print(f"Error in identify_devices() for {input_string}")
+        # return "Device not available"
+        
 def identify_devices(input_string):
     try:
-        # First, check if any device in the Sales Data and Sentiment data is exactly in the input string
         input_string = input_string.upper()
-        devices_list_sentiment = list(Devices_Sentiment_Data['Product_Family'].unique())
+
+        # Check if Devices_Sentiment_Data is valid
+        if "Devices_Sentiment_Data" not in st.session_state or st.session_state["Devices_Sentiment_Data"] is None:
+            print("Error: Devices_Sentiment_Data is None or not found in session state")
+            return "Device not available"
+        
+        Devices_Sentiment_Data = st.session_state["Devices_Sentiment_Data"]
+
+        # Check if Product_Family column exists
+        if "Product_Family" not in Devices_Sentiment_Data.columns:
+            print("Error: 'Product_Family' column is missing in Devices_Sentiment_Data")
+            return "Device not available"
+
+        # Extract unique device names
+        devices_list_sentiment = list(Devices_Sentiment_Data['Product_Family'].dropna().unique())  # Drop NaN values
+        
         for device in devices_list_sentiment:
             if device in input_string:
                 return device
 
-        # If no exact match is found, use fuzzy matching
+        # Use fuzzy matching if no exact match is found
         most_matching_device_sentiment = process.extractOne(input_string, devices_list_sentiment, scorer=fuzz.token_set_ratio)  
 
-        # Check the matching score
-        if most_matching_device_sentiment[1] >= 60:
+        if most_matching_device_sentiment and most_matching_device_sentiment[1] >= 60:
             return most_matching_device_sentiment[0]
 
-        devices_list_sales = list(dev_mapping['SalesDevice'].unique())
+        # Check Sales Data
+        if "dev_mapping" not in globals() or dev_mapping is None:
+            print("Error: dev_mapping is None or not found")
+            return "Device not available"
+
+        if "SalesDevice" not in dev_mapping.columns:
+            print("Error: 'SalesDevice' column is missing in dev_mapping")
+            return "Device not available"
+
+        devices_list_sales = list(dev_mapping['SalesDevice'].dropna().unique())
+
         for device in devices_list_sales:
             if device == "UNDEFINED":
                 continue
@@ -1647,12 +2082,13 @@ def identify_devices(input_string):
 
         most_matching_device_sales = process.extractOne(input_string, devices_list_sales, scorer=fuzz.token_set_ratio)
 
-        if most_matching_device_sales[1] >= 60:
+        if most_matching_device_sales and most_matching_device_sales[1] >= 60:
             return most_matching_device_sales[0]
         else:
             return "Device not available"
-    except:
-        print(f"Error in identify_devices() for {input_string}")
+
+    except Exception as e:
+        print(f"Error in identify_devices() for {input_string}: {e}")
         return "Device not available"
 
         
@@ -1776,14 +2212,32 @@ def device_summarization(user_input):
 
 def extract_comparison_devices(user_question):
     try:
-        # Define the prompt template
         prompt_template = """
-        Given a user prompt to compare customer reviews for two products or devices, extract the two product names.
+        You are given a user query that compares customer reviews, feedback, or performance between two products . Your task is to extract the two compared device names.
         
-        For example: "How does the Surface Go 3 compare to the HP Zbook 9?"
+        Specific Product Names (e.g., Microsoft Surface Pro 11, Apple MacBook Air 15)
 
-        Extracted Products: Surface Go 3, HP Zbook 9
+        Instructions:
+
+        If the user compares specific devices, extract their full names as mentioned.
+
+        Do not fabricate product names; use exact wording from the query where possible.
+
         
+        Examples:
+
+        Input 1:
+        "Compare Microsoft Surface Pro 11 with Microsoft Surface Pro 7"
+        Output:
+        Microsoft Surface Pro 11, Microsoft Surface Pro 7
+
+        
+        Input 3:
+        "Which is better: Acer Nitro 5 or ASUS TUF Gaming A15?"
+        Output:
+        Acer Nitro 5, ASUS TUF Gaming A15
+
+                     
         Input: Compare [PRODUCT_A] to [PRODUCT_B].
         Output: PRODUCT_A, PRODUCT_B
         Context:
@@ -1852,14 +2306,19 @@ def identify_prompt(user_question):
                    "What is the net sentiment for different geographies of product_family "A"?"
                    "What is the net sentiment across different aspects of device "X"?"
                    "Give me net sentiment of different aspects of Laptop A?"
-                   "What is the aspect wise net sentiment for product family 'X' ? etc.)
+                   "show me the sentiment trend for device "X""
+                   "What is the aspect wise net sentiment for product family 'X' ?
+                   "What is the net sentiment for different geographies of Copilot+ PCs for product_family 'A'?"
+                   "What is the net sentiment across different aspects for Copilot+ PCs of device 'X'?"
+                   "Give me net sentiment of different aspects of Copilot+ PC Laptop A?"
         
         Sales: Choose this if the prompt seeks a quantitative or numerical answer around net sales or net sales units or average sales price for different product families or geographies.
                If user is asking any quantitative questions involving sales, you should select this category.
                
         (e.g., "Calculate the net sales for different product families",
-                "What is the net sales for different geographies of product_family "A"?
-                "What is the average sales price across different aspects of device "X"? etc.)
+                "What is the net sales for different geographies of product_family "A"?",
+                "Draw the relation between units sold and average selling price? For product_family "A"?",
+                "What is the average sales price across different aspects of device "X"?" etc.)
                 
 
         Other:
@@ -1924,7 +2383,7 @@ def get_conversational_chain_devices_generic():
 
             INMPORTANT : Verbatims is nothing but Review. if user asks for top reviews. Give some important reviews user mentioned.
             
-            Given a dataset with these columns: Review, Data_Source, Geography, Product_Family, Sentiment and Aspect (also called Features)
+            Given a dataset with these columns: Review, Data_Source, Geography, Product_Family, Sentiment and Aspect (also called Features)etc. and are mentioned in detailed below.
                       
                       Review: This column contains the opinions and experiences of users regarding different product families across geographies, providing insights into customer satisfaction or complaints and areas for improvement.
                       Data_Source: This column indicates the platform from which the user reviews were collected, such as Amazon, Flipkart, Bestbuy.
@@ -1932,7 +2391,11 @@ def get_conversational_chain_devices_generic():
                       Product_Family: This column identifies the broader category of products to which the review pertains, enabling comparisons and trend analysis across different product families.
                       Sentiment: This column reflects the overall tone of the review, whether positive, negative, or neutral, and is crucial for gauging customer sentiment.
                       Aspect: This column highlights the particular features or attributes of the product that the review discusses, pinpointing areas of strength or concern.
-                      
+                      OEM: Manufacturer of the device, containing values such as HP, Dell, Lenovo, Microsoft, Apple, etc.       
+                      Chassis: Classification of the device based on its physical design and build, containing values such as 'Premium Mobility Lower', 'Mainstream Upper', 'Premium Mobility Upper', 'Creation Upper', 'Desktop AIO', 'Enterprise Fleet Lower' etc...  
+                      OSType: The operating system type of the product, such as "Windows 11", "Windows 10", "Linux", or "ChromeOS".
+                      Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
                       Perform the required task from the list below, as per user's query: 
                       1. Review Summarization - Summarize the reviews by filtering the relevant Aspect, Geography, Product_Family, Sentiment or Data_Source, only based on available reviews and their sentiments in the dataset.
                       2. Aspect Comparison - Provide a summarized comparison for each overlapping feature/aspect between the product families or geographies ,  only based on available user reviews and their sentiments in the dataset. Include pointers for each aspect highlighting the key differences between the product families or geographies, along with the positive and negative sentiments as per customer perception.
@@ -1947,9 +2410,7 @@ def get_conversational_chain_devices_generic():
                       Utilizing context and available data columns to infer the correct meaning and respond appropriately to user queries involving variations in product family names or geographical references
                       Please provide a comprehensive Review summary, feature comparison, feature suggestions for specific product families and actionable insights that can help in product development and marketing strategies.
                       Generate acurate response only, do not provide extra information.
-          \nFollowing is the previous conversation from User and Response, use it to get context only:""" + str(st.session_state.context_history_devices) + """\n
-                Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n. When user asks uses references like "from previous response", ":from above response" or "from above", Please refer the previous conversation and respond accordingly.\n
-            
+                      
             IMPORTANT: Generate outputs using the provided dataset only, don't use pre-trained information to generate outputs.
             
             If the user question is not in the data provided. Just mention - "Sorry! I do not have sufficient reviews for mentioned product.". 
@@ -1971,7 +2432,7 @@ def get_conversational_chain_devices_generic():
         print(f"Error in get_conversational_chain_devices_generic()")
         return err
       
-def query_devices_detailed_generic(user_question, vector_store_path="faiss_index_Windows_116k"):
+def query_devices_detailed_generic(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment=azure_embedding_name)
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
@@ -1980,7 +2441,7 @@ def query_devices_detailed_generic(user_question, vector_store_path="faiss_index
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
     except:
-        err = f"An error occurred while getting LLM response for detailed review summarization."
+        err = f"Hello! I specialize in Comparison, Summarization, Aspect-wise Net Sentiment Analysis, and Visualization. If your query falls outside these areas, please reframe it accordingly—I’m happy to assist!"
         print(f"Error in query_devices_detailed_generic() for {user_question}")
         return err
 
@@ -2060,7 +2521,7 @@ def get_conversational_chain_quant_devices():
         IMPORTANT : IT has to be Net sentiment and Aspect Sentiment. Create 2 SQL Query and UNION them
         
         1. Your Job is to convert the user question to SQL Query (Follow Microsoft SQL server SSMS syntax.). You have to give the query so that it can be used on Microsoft SQL server SSMS.You have to only return query as a result.
-            2. There is only one table with table name Devices_Sentiment_Data where each row is a user review. The table has 10 columns, they are:
+            2. There is only one table with table name Devices_Sentiment_Data where each row is a user review. The table has 16+ columns, they are:
                 Review: Review of the Windows Product
                 Data_Source: From where is the review taken. It contains different retailers
                 Geography: From which Country or Region the review was given. It contains different Grography.
@@ -2073,7 +2534,11 @@ def get_conversational_chain_quant_devices():
                 Keyword: What are the keywords mentioned in the product
                 Review_Count - It will be 1 for each review or each row
                 Sentiment_Score - It will be 1, 0 or -1 based on the Sentiment.
-                
+                OEM: Manufacturer of the device, containing values such as HP, Dell, Lenovo, Microsoft, Apple, etc.       
+                Chassis: Classification of the device based on its physical design and build, containing values such as 'Premium Mobility Lower', 'Mainstream Upper', 'Premium Mobility Upper', 'Creation Upper', 'Desktop AIO', 'Enterprise Fleet Lower' etc...  
+                OSType: The operating system type of the product, such as "Windows 11", "Windows 10", "Linux", or "ChromeOS".
+                Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
             3. Sentiment mark is calculated by sum of Sentiment_Score.
             4. Net sentiment is calculcated by sum of Sentiment_Score divided by sum of Review_Count. It should be in percentage. Example:
                     SELECT ((SUM(Sentiment_Score)*1.0)/(SUM(Review_Count)*1.0)) * 100 AS Net_Sentiment 
@@ -2129,13 +2594,12 @@ def get_conversational_chain_quant_devices():
         return err
 
 #Function to convert user prompt to quantitative outputs for Copilot Review Summarization
-def query_quant_devices(user_question, vector_store_path="faiss_index_Windows_116k"):
+def query_quant_devices(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     try:
-        # Initialize the embeddings model
+        if "Devices_Sentiment_Data" in st.session_state:
+            globals()["Devices_Sentiment_Data"] = st.session_state["Devices_Sentiment_Data"]
         embeddings = AzureOpenAIEmbeddings(azure_deployment=azure_embedding_name)
-        # Load the vector store with the embeddings model
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        # Rest of the function remains unchanged
         chain = get_conversational_chain_quant_devices()
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
@@ -2158,7 +2622,7 @@ def get_conversational_chain_quant_classify2_compare_devices():
                 You are an AI Chatbot assistant. Understand the user question carefully and follow all the instructions mentioned below.
                 1. Your job is to convert the user question to an SQL query (Follow Microsoft SQL Server SSMS syntax). You have to give the query so that it can be used on Microsoft SQL Server SSMS. You have to only return the query as a result.
                 2. There is only one table with the table name `Devices_Sentiment_Data` where each row is a user review. The table has 10 columns:
-                    - There is only one table with table name Devices_Sentiment_Data where each row has. The table has 10 columns, they are:
+                    - There is only one table with table name Devices_Sentiment_Data where each row has. The table has 11+ columns, they are:
                     Review: This column contains the opinions and experiences of users regarding different product families across geographies, providing insights into customer satisfaction or complaints and areas for improvement.
                     Data_Source: This column indicates the platform from which the user reviews were collected, such as Amazon, Flipkart, Bestbuy.
                     Geography: This column lists the countries of the users who provided the reviews, allowing for an analysis of regional preferences and perceptions of the products.
@@ -2166,7 +2630,11 @@ def get_conversational_chain_quant_classify2_compare_devices():
                     Sentiment: This column reflects the overall tone of the review, whether positive, negative, or neutral, and is crucial for gauging customer sentiment.
                     Sentiment: This column reflects the overall tone of the review, whether positive, negative, or neutral, and is crucial for gauging customer sentiment.
                     Aspect: This column highlights the particular features or attributes of the product that the review discusses, pinpointing areas of strength or concern.These are the aspects for present in the table. Generic, Design, Software, Performance, Price, Hardware, Display, Hardware, Display, Battery, Keyboard, Storage/Memory, Connectivity, Gaming, Customer-Service, Browser, Audio-Microphone, Ports, Camera, Account, Graphics, Touchpad.
-                
+                    OEM: Manufacturer of the device, containing values such as HP, Dell, Lenovo, Microsoft, Apple, etc.       
+                    Chassis: Classification of the device based on its physical design and build, containing values such as 'Premium Mobility Lower', 'Mainstream Upper', 'Premium Mobility Upper', 'Creation Upper', 'Desktop AIO', 'Enterprise Fleet Lower' etc...  
+                    OSType: The operating system type of the product, such as "Windows 11", "Windows 10", "Linux", or "ChromeOS".  
+                    Copilot+ PC: Indicates whether the device is a Copilot+ PC, with values: 'Yes' for devices equipped with Copilot+ capabilities and 'No' for standard devices.
+
         IMPORTANT : You will get the user prompt and also you will get the exact device names also so rephrase that by yourself with the proper product family names.
                     Example : You will get like -Compare Battery aspect sentiment of Microsoft Surface pro, Microsoft Surface go and hp Pavillon. MICROSOFT SURFACE LAPTOP GO 3 12, MICROSOFT SURFACE PRO 9 13, HP PAVILON 15. 
                               you need to rephrase like - Comapre Battery aspect sentiment of MICROSOFT SURFACE LAPTOP GO 3 12, MICROSOFT SURFACE PRO 9 13 and HP PAVILON 15.
@@ -2194,7 +2662,7 @@ def get_conversational_chain_quant_classify2_compare_devices():
                             FROM Devices_Sentiment_Data 
                             GROUP BY 'Y'
                             ORDER BY Distribution_PCT DESC
-                    5. If the user asks for net sentiment across any country: example : Net sentiment of Windows Copilot in US geography
+                    5. If the user asks for net sentiment across any country: example : Net sentiment of Windows OS in US geography
                                SELECT ((SUM(Sentiment_Score)) / (SUM(Review_Count))) * 100 AS Net_Sentiment
                                FROM Devices_Sentiment_Data
                                WHERE Geography LIKE "%US%"
@@ -2206,9 +2674,9 @@ def get_conversational_chain_quant_classify2_compare_devices():
                     7. Review count mix/ Review count Percentage of a product by aspect:
                     
                     
-                        SELECT ASPECT, (SUM(REVIEW_COUNT)*100/(SELECT SUM(REVIEW_COUNT) FROM Devices_Sentiment_Data WHERE PRODUCT_FAMILY LIKE '%GITHUB COPILOT%')) AS REVIEW_COUNT_PERCENTAGE
+                        SELECT ASPECT, (SUM(REVIEW_COUNT)*100/(SELECT SUM(REVIEW_COUNT) FROM Devices_Sentiment_Data WHERE PRODUCT_FAMILY LIKE '%SURFACE PRO%')) AS REVIEW_COUNT_PERCENTAGE
                         FROM Devices_Sentiment_Data
-                        WHERE PRODUCT_FAMILY LIKE '%HP PAVILON 15%'
+                        WHERE PRODUCT_FAMILY LIKE '%SURFACE PRO%'
                         GROUP BY ASPECT
                         ORDER BY REVIEW_COUNT_PERCENTAGE DESC
                         
@@ -2222,6 +2690,7 @@ def get_conversational_chain_quant_classify2_compare_devices():
                         GROUP BY PRODUCT_FAMILY
                         ORDER BY NET_SENTIMENT DESC;
                         
+                              
                     9. If user asks for more than two or more aspects use the below format
                         SELECT PRODUCT_FAMILY, 'BATTERY' AS ASPECT, 
                                ((SUM(CASE WHEN ASPECT = 'BATTERY' THEN SENTIMENT_SCORE ELSE 0 END)) / 
@@ -2347,15 +2816,18 @@ def get_conversational_chain_quant_classify2_compare_devices():
         print(f"Error in get_conversational_chain_quant_classify2_compare_devices().")
         return err
 
-def query_quant_classify2_compare_devices(user_question, vector_store_path="combine_indexes"):
+def query_quant_classify2_compare_devices(user_question, vector_store_path="Sentiment_Data_Indexes_0906_25"):
     global history
     try:
+        if "Devices_Sentiment_Data" in st.session_state:
+            globals()["Devices_Sentiment_Data"] = st.session_state["Devices_Sentiment_Data"]
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
         chain = get_conversational_chain_quant_classify2_compare_devices()
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         SQL_Query = response["output_text"]
+        print(SQL_Query)
         # st.write(SQL_Query)
         SQL_Query = convert_top_to_limit(SQL_Query)
         SQL_Query = process_tablename(SQL_Query,"Devices_Sentiment_Data")
@@ -2372,60 +2844,86 @@ def query_quant_classify2_compare_devices(user_question, vector_store_path="comb
     
     
     
-def custom_color_gradient_compare_devices(val, vmin=-100, vmax=100):
-    green_hex = '#347c47'
-    middle_hex = '#dcdcdc'
-    lower_hex = '#b0343c'
+# def custom_color_gradient_compare_devices(val, vmin=-100, vmax=100):
+    # green_hex = '#347c47'
+    # middle_hex = '#dcdcdc'
+    # lower_hex = '#b0343c'
     # Adjust the normalization to set the middle value as 0
-    try:
+    # try:
         # Normalize the value to be between -1 and 1 with 0 as the midpoint
-        normalized_val = (int(val) - vmin) / (vmax - vmin) * 2 - 1
-    except:
-        normalized_val = 0
-    if normalized_val <= 0:
+        # normalized_val = (int(val) - vmin) / (vmax - vmin) * 2 - 1
+    # except:
+        # normalized_val = 0
+    # if normalized_val <= 0:
         # Interpolate between lower_hex and middle_hex for values <= 0
-        r = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[1:3], 16), int(middle_hex[1:3], 16)]))
-        g = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[3:5], 16), int(middle_hex[3:5], 16)]))
-        b = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[5:7], 16), int(middle_hex[5:7], 16)]))
-    else:
+        # r = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[1:3], 16), int(middle_hex[1:3], 16)]))
+        # g = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[3:5], 16), int(middle_hex[3:5], 16)]))
+        # b = int(np.interp(normalized_val, [-1, 0], [int(lower_hex[5:7], 16), int(middle_hex[5:7], 16)]))
+    # else:
         # Interpolate between middle_hex and green_hex for values > 0
-        r = int(np.interp(normalized_val, [0, 1], [int(middle_hex[1:3], 16), int(green_hex[1:3], 16)]))
-        g = int(np.interp(normalized_val, [0, 1], [int(middle_hex[3:5], 16), int(green_hex[3:5], 16)]))
-        b = int(np.interp(normalized_val, [0, 1], [int(middle_hex[5:7], 16), int(green_hex[5:7], 16)]))
+        # r = int(np.interp(normalized_val, [0, 1], [int(middle_hex[1:3], 16), int(green_hex[1:3], 16)]))
+        # g = int(np.interp(normalized_val, [0, 1], [int(middle_hex[3:5], 16), int(green_hex[3:5], 16)]))
+        # b = int(np.interp(normalized_val, [0, 1], [int(middle_hex[5:7], 16), int(green_hex[5:7], 16)]))
     # Convert interpolated RGB values to hex format for CSS color styling
+    # hex_color = f'#{r:02x}{g:02x}{b:02x}'
+    # return f'background-color: {hex_color}; color: black;'
+    
+def custom_color_gradient_compare_devices(val, vmin=-100, vmax=100):
+    # Define HEX color stops
+    colors = ["#B0343C", "#DCDCDC", "#347C47"]  # Maroon → Ash → Green
+    
+    try:
+        # Convert value to float (handle percentage or string values)
+        if isinstance(val, str) and "%" in val:
+            val = float(val.replace("%", ""))
+        val = float(val)
+    except:
+        return "background-color: #DCDCDC; color: black;"  # Default to Ash if invalid
+    
+    # Normalize value between 0 and 1 for interpolation
+    norm_val = (val - vmin) / (vmax - vmin)  # Maps -100 to 0, 100 to 1
+
+    # Interpolate between colors
+    r = int(np.interp(norm_val, [0, 0.5, 1], [176, 220, 52]))  # R values of [Maroon, Ash, Green]
+    g = int(np.interp(norm_val, [0, 0.5, 1], [52, 220, 124]))  # G values of [Maroon, Ash, Green]
+    b = int(np.interp(norm_val, [0, 0.5, 1], [60, 220, 71]))   # B values of [Maroon, Ash, Green]
+
+    # Convert RGB to HEX
     hex_color = f'#{r:02x}{g:02x}{b:02x}'
     return f'background-color: {hex_color}; color: black;'
 
     
     
 def devices_quant_approach1(user_question_final):
-#     user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
-#     user_question_final=user_question_final.replace("DEVICE","")
     device = identify_devices(user_question_final)
+    print(device)
 
 #################################################################################################################################
     if device == "Device not available":
         try:
-            data= quantifiable_data_devices(user_question_final)
+            data = quantifiable_data_devices(user_question_final)
+            if 'REVIEW_DATE' in data.columns:
+                data['REVIEW_DATE'] = pd.to_datetime(data['REVIEW_DATE'], errors='coerce')
+                data = data.sort_values(by='REVIEW_DATE', ascending=True)
             if 'NET_SENTIMENT' in data.columns:
-                    overall_net_sentiment=data['NET_SENTIMENT'][0]
-                    overall_net_sentiment = round(overall_net_sentiment, 1)
-                    overall_review_count=data['REVIEW_COUNT'][0]
-                    overall_review_count = round(overall_review_count)
-        except:
-            print(f"Cannot generate quantitative output for {user_question_final}")
+                overall_net_sentiment = data['NET_SENTIMENT'].iloc[0]
+                overall_net_sentiment = round(overall_net_sentiment, 1)
+            if 'REVIEW_COUNT' in data.columns:
+                overall_review_count = data['REVIEW_COUNT'].iloc[0]
+                overall_review_count = round(overall_review_count)
+
+        except Exception as e:
+            print(f"Cannot generate quantitative output for {user_question_final}. Error: {e}")
             
         words = user_question_final.lower().split()
-        target_words = ['visual', 'visualize', 'graph', 'chart', 'visualization']
+        target_words = ['visual', 'visualize', 'graph', 'chart', 'visualization', 'trend', 'trendline']
         
         try:
             if any(word in words for word in target_words):
-                #st.write("for visual")
                 visual_data=data.copy()
                 numerical_cols = visual_data.select_dtypes(include='number').columns
-                visual_data[numerical_cols] = visual_data[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
+                visual_data[numerical_cols] = visual_data[numerical_cols].apply(lambda x: x.round(2) if x.dtype == 'float' else x)
                 generate_chart(visual_data)
-
                 visual_data = visual_data[~visual_data.applymap(lambda x: x == 'TOTAL').any(axis=1)]
                 generate_chart_insight_llm_devices(str(visual_data))
 
@@ -2433,17 +2931,13 @@ def devices_quant_approach1(user_question_final):
             elif len(data)>0:
 
                 show_output=data.copy()
-                #show_output=data_show.drop(index=0)
                 numerical_cols = data.select_dtypes(include='number').columns
                 data[numerical_cols] = data[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
                 numerical_cols = show_output.select_dtypes(include='number').columns
-                show_output[numerical_cols] = show_output[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
-
-                #st.dataframe(show_output)
-
-                #data2=data.copy()
-                #show_output = show_output.replace('Unknown', pd.NA).dropna()
-                        #data2['Impact']=np.where(data2['NET_SENTIMENT']<overall_net_sentiment,'LOW','HIGH')
+                show_output[numerical_cols] = show_output[numerical_cols].apply(lambda x: x.round(2) if x.dtype == 'float' else x)
+                data2=data.copy()
+                show_output = show_output.replace('Unknown', pd.NA).dropna()
+                data2['Impact']=np.where(data2['NET_SENTIMENT']<overall_net_sentiment,'LOW','HIGH')
                 if 'NET_SENTIMENT' in show_output.columns:
                     conditions = [
                       show_output['NET_SENTIMENT'] < overall_net_sentiment,
@@ -2456,12 +2950,6 @@ def devices_quant_approach1(user_question_final):
                                  ]
 
                     show_output['Impact'] = np.select(conditions, choices, default='HIGH')
-    #                             st.write("after impact calculation")    
-    #                             st.write(show_output)
-
-
-
-                #st.dataframe(data2)
                 dataframe_as_dict = show_output.to_dict(orient='records')
 
                 try:
@@ -2472,13 +2960,15 @@ def devices_quant_approach1(user_question_final):
                     show_output = show_output.drop(index=0)
                     show_output2=show_output.copy()
                     show_output2.drop('Impact', axis=1, inplace=True)
-                    #st.write("final dataframe")
-                    show_output2 = show_output2.style.applymap(custom_color_gradient_compare_devices,subset=['NET_SENTIMENT'])
-                    show_output2 = show_output2.set_properties(**{'text-align': 'center'})
+                    show_output2['NET_SENTIMENT'] = show_output2['NET_SENTIMENT'].round(0).astype(int).astype(str) + "%"
+                    show_output2['REVIEW_COUNT'] = show_output2['REVIEW_COUNT'].astype(int) 
+                    styled_show_output2 = show_output2.style.applymap(custom_color_gradient_compare_devices, subset=['NET_SENTIMENT'])
+                    if 'REVIEW_DATE' in styled_show_output2.columns:
+                        styled_show_output2['REVIEW_DATE'] = pd.to_datetime(styled_show_output2['REVIEW_DATE'], errors='coerce')
+                        styled_show_output2 = styled_show_output2.sort_values(by='REVIEW_DATE', ascending=True)
                     
-                    st.dataframe(show_output2)
-                    #st.write(show_output2)
-                    show_output2_html = show_output2.to_html(index=False)
+                    st.write(styled_show_output2)
+                    show_output2_html = styled_show_output2.to_html(index=False)
                     st.session_state.display_history_devices.append({"role": "assistant", "content": show_output2_html, "is_html": True})
                     st.write(f" Overall Net Sentiment is {overall_net_sentiment} for {overall_review_count} reviews.")
                     st.session_state.display_history_devices.append({"role": "assistant", "content": f" Overall Net Sentiment is {overall_net_sentiment} for {overall_review_count} reviews.", "is_html": False})
@@ -2488,8 +2978,14 @@ def devices_quant_approach1(user_question_final):
                     st.session_state.display_history_devices.append({"role": "assistant", "content": qunat_summary, "is_html": False})
                 else:
                     show_output2=show_output.copy()
-                    #show_output2.drop('Impact', axis=1, inplace=True)
-                    #st.write("final dataframe")
+                    show_output2['NET_SENTIMENT'] = show_output2['NET_SENTIMENT'].round(0).astype(int).astype(str) + "%"
+                    show_output2['REVIEW_COUNT'] = show_output2['REVIEW_COUNT'].astype(int)
+                    if 'REVIEW_DATE' in show_output2.columns:
+                        show_output2['REVIEW_DATE'] = pd.to_datetime(show_output2['REVIEW_DATE'], errors='coerce')
+                        show_output2 = show_output2.sort_values(by='REVIEW_DATE', ascending=True)
+                    
+                    show_output2.drop('Impact', axis=1, inplace=True)
+                    st.write("final dataframe")
                     st.write(show_output2)
                     show_output2_html = show_output2.to_html(index=False)
                     st.session_state.display_history_devices.append({"role": "assistant", "content": show_output2_html, "is_html": True})
@@ -2503,8 +2999,10 @@ def devices_quant_approach1(user_question_final):
                     generate_chart(data)
             else:
                 st.write(data)      
-        except:
+        except Exception as e:
+            print(e)
             st.write(f"Cannot generate quantitative output for the given prompt. Please rephrase and try again!")
+            
 
 ##################################################################################################################################
     else:
@@ -2513,6 +3011,10 @@ def devices_quant_approach1(user_question_final):
             if device1:
                 user_question_final=user_question_final.replace(device,device1)
                 data= quantifiable_data_devices(user_question_final)
+                
+                if 'REVIEW_DATE' in data.columns:
+                    data['REVIEW_DATE'] = pd.to_datetime(data['REVIEW_DATE'], errors='coerce')
+                    data = data.sort_values(by='REVIEW_DATE', ascending=True)
 
                 if len(data)==0:
                     Gen_Ans = query_devices_detailed_generic(st.session_state.user_question_final)
@@ -2548,12 +3050,6 @@ def devices_quant_approach1(user_question_final):
                         data[numerical_cols] = data[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
                         numerical_cols = show_output.select_dtypes(include='number').columns
                         show_output[numerical_cols] = show_output[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
-
-                        #st.dataframe(show_output)
-
-                        #data2=data.copy()
-                        #show_output = show_output.replace('Unknown', pd.NA).dropna()
-                        #data2['Impact']=np.where(data2['NET_SENTIMENT']<overall_net_sentiment,'LOW','HIGH')
                         if 'NET_SENTIMENT' in show_output.columns:
                             conditions = [
                               show_output['NET_SENTIMENT'] < overall_net_sentiment,
@@ -2566,12 +3062,6 @@ def devices_quant_approach1(user_question_final):
                                          ]
 
                             show_output['Impact'] = np.select(conditions, choices, default='HIGH')
-    #                                     st.write("after impact calculation")    
-    #                                     st.write(show_output)
-
-
-
-                        #st.dataframe(data2)
                         dataframe_as_dict = show_output.to_dict(orient='records')
 
                         try:
@@ -2581,13 +3071,16 @@ def devices_quant_approach1(user_question_final):
                         if 'NET_SENTIMENT' in show_output.columns:
                             show_output = show_output.drop(index=0)
                             show_output2=show_output.copy()
+                            print(show_output2)
                             show_output2.drop('Impact', axis=1, inplace=True)
-                            #st.write("final dataframe
+                            show_output2['NET_SENTIMENT'] = show_output2['NET_SENTIMENT'].round(0).astype(int).astype(str) + "%"
+                            show_output2['REVIEW_COUNT'] = show_output2['REVIEW_COUNT'].astype(int)
                             show_output2 = show_output2.style.applymap(custom_color_gradient_compare_devices,subset=['NET_SENTIMENT'])
-                            show_output2 = show_output2.set_properties(**{'text-align': 'center'})
-                            
+                            if 'REVIEW_DATE' in show_output2.columns:
+                                show_output2['REVIEW_DATE'] = pd.to_datetime(show_output2['REVIEW_DATE'], errors='coerce')
+                                show_output2 = show_output2.sort_values(by='REVIEW_DATE', ascending=True)
+                            print(show_output2)
                             st.dataframe(show_output2)
-                            #st.write(show_output2)
                             show_output2_html = show_output2.to_html(index=False)
                             st.session_state.display_history_devices.append({"role": "assistant", "content": show_output2_html, "is_html": True})
                             st.write(f" Overall Net Sentiment is {overall_net_sentiment} for {overall_review_count} reviews.")
@@ -2598,8 +3091,11 @@ def devices_quant_approach1(user_question_final):
                             st.session_state.display_history_devices.append({"role": "assistant", "content": qunat_summary, "is_html": False})
                         else:
                             show_output2=show_output.copy()
-                            #show_output2.drop('Impact', axis=1, inplace=True)
-                            #st.write("final dataframe")
+                            show_output2['NET_SENTIMENT'] = show_output2['NET_SENTIMENT'].round(0).astype(int).astype(str) + "%"
+                            show_output2['REVIEW_COUNT'] = show_output2['REVIEW_COUNT'].astype(int)
+                            if 'REVIEW_DATE' in show_output2.columns:
+                                show_output2['REVIEW_DATE'] = pd.to_datetime(show_output2['REVIEW_DATE'], errors='coerce')
+                                show_output2 = show_output2.sort_values(by='REVIEW_DATE', ascending=True)
                             st.write(show_output2)
                             show_output2_html = show_output2.to_html(index=False)
                             st.session_state.display_history_devices.append({"role": "assistant", "content": show_output2_html, "is_html": True})
@@ -2607,13 +3103,10 @@ def devices_quant_approach1(user_question_final):
                             st.write(qunat_summary)
                             save_history_devices(qunat_summary)
                             st.session_state.display_history_devices.append({"role": "assistant", "content": qunat_summary, "is_html": False})
-
-
                         if(len(data))>1:
                             generate_chart(data)
                     else:
-                        st.write(data)      
-
+                        st.write(data)
             else:                                
                 Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
                 st.write(Gen_Ans)
@@ -2625,16 +3118,9 @@ def devices_quant_approach1(user_question_final):
             
             
 def sales_quant_approach1(user_question_final):
-    try:
-        
-    
+    try:    
         device = identify_devices(user_question_final)
-                                    #st.write(device)
         if device == "Device not available":
-
-    ##################################################################################################################################
-            #brand_list=list(RCR_Sales_Data['OEMGROUP'].unique())
-            #RCR_Sales_Data['Series'] = RCR_Sales_Data['Series']+RCR_Sales_Data['OEMGROUP']
             response=query_quant_classify2_sales(user_question_final)
             if isinstance(response, pd.DataFrame):
                 if 'Month' in response.columns:
@@ -2655,21 +3141,8 @@ def sales_quant_approach1(user_question_final):
         else:
 
             device1 = get_sales_device_name(device)
-            #st.write(device1)
             if device1:
                 user_question_final=user_question_final.replace(device,device1)
-
-                #brand_list=list(RCR_Sales_Data['OEMGROUP'].unique())
-    #                                 for i in range(len(RCR_Sales_Data)):
-    #                                     RCR_Sales_Data['Series'][i]=RCR_Sales_Data['OEMGROUP'][i]+" "+RCR_Sales_Data['Series'][i]
-
-                #RCR_Sales_Data['Series'] = RCR_Sales_Data['Series']+RCR_Sales_Data['OEMGROUP']
-                #st.write(RCR_Sales_Data['Series'].unique)
-    #                                 for i in brand_list:
-    #                                     if i.upper() in user_question_final:
-    #                                         user_question_final=user_question_final.replace(i.upper(),'')
-
-                #st.write(user_question_final)
                 response=query_quant_classify2_sales(user_question_final)
                 if isinstance(response, pd.DataFrame):
                     if 'Month' in response.columns:
@@ -2686,279 +3159,126 @@ def sales_quant_approach1(user_question_final):
                     st.session_state.display_history_devices.append({"role": "assistant", "content": response, "is_html": False})           
     except:
         st.write(f"Cannot generate quantitative output for the given prompt. Please rephrase and try again!")
-            
+        
+def is_date_column(series):
+    """Identify if a column contains date-like values."""
+    try:
+        pd.to_datetime(series, errors='coerce')
+        return True
+    except:
+        return False
+
 def generate_chart(df):
     try:
-        
         global full_response
-        df_copy=df.copy()
+        df_copy = df.copy()
         df = df[~df.applymap(lambda x: x == 'TOTAL').any(axis=1)]
-        #st.write("shape of df",df)
-        if df.shape[0] == 1 or (df.shape[0]==2 and (df.iloc[0:1,-1]==df.iloc[1:2,-1])):
+        
+        if df.shape[0] == 1 or (df.shape[0] == 2 and (df.iloc[0:1, -1] == df.iloc[1:2, -1])):
             return
-
-
+        date_cols = [col for col in df.columns if is_date_column(df[col])]
+        
         if 'REVIEW_COUNT' in df.columns:
-            df.drop('REVIEW_COUNT',axis=1, inplace=True)
-            #st.write(df)
-
+            df.drop('REVIEW_COUNT', axis=1, inplace=True)
+        
         try:
-            df=df.drop('Impact',axis=1)
-            df=df.drop('REVIEW_COUNT',axis=1)
-
+            df = df.drop('Impact', axis=1)
+            df = df.drop('REVIEW_COUNT', axis=1)
         except:
             pass
+            
+        if 'YEAR_MONTH' in df.columns:
+            df['YEAR_MONTH'] = pd.to_datetime(df['YEAR_MONTH'], errors='coerce')
+ 
+        
         num_cols = df.select_dtypes(include=['number']).columns
         cat_cols = df.select_dtypes(include=['object', 'category']).columns
         date_cols = df.select_dtypes(include=['datetime']).columns
-
-        if len(num_cols)>0:
+        
+        if len(num_cols) > 0:
             for i in range(len(num_cols)):
-                df[num_cols[i]]=round(df[num_cols[i]],1)
-
-        if len(df.columns)>3:
+                df[num_cols[i]] = round(df[num_cols[i]], 1)
+        
+        if len(df.columns) > 3:
             try:
                 cols_to_drop = [col for col in df.columns if df[col].nunique() == 1]
                 df.drop(columns=cols_to_drop, inplace=True)
             except:
                 pass
-
-            df=df.iloc[:, :3]
-
+            df = df.iloc[:, :3]
+        
         num_cols = df.select_dtypes(include=['number']).columns
         cat_cols = df.select_dtypes(include=['object', 'category']).columns
         date_cols = df.select_dtypes(include=['datetime']).columns
-        #st.write(num_cols,cat_cols,len(num_cols),len(cat_cols))
-        # Simple heuristic to determine the most suitable chart
-        if len(df.columns)<=2:
-
+        
+        if len(df.columns) <= 2:
             if len(num_cols) == 1 and len(cat_cols) == 0 and len(date_cols) == 0:
-
                 plt.figure(figsize=(10, 6))
                 sns.histplot(df[num_cols[0]], kde=True)
                 plt.title(f"Frequency Distribution of '{num_cols[0]}'")
                 st.pyplot(plt)
-                # try:
-                    # chart = plt.to_html()
-                    # full_response += chart
-                # except:
-                    # st.write("Error in converting chart to html")
-
-
             elif len(num_cols) == 2:
-
                 plt.figure(figsize=(10, 6))
                 sns.scatterplot(x=df[num_cols[0]], y=df[num_cols[1]])
                 plt.title(f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
                 st.pyplot(plt)
-                # try:
-                    # chart = plt.to_html()
-                    # full_response += chart
-                # except:
-                    # st.write("Error in converting chart to html")
-
-
             elif len(cat_cols) == 1 and len(num_cols) == 1:
-                if df[cat_cols[0]].nunique() <= 5 and df[num_cols[0]].sum()>=99 and df[num_cols[0]].sum()<=101:
+                if df[cat_cols[0]].nunique() <= 5 and df[num_cols[0]].sum() >= 99 and df[num_cols[0]].sum() <= 101:
                     fig = px.pie(df, names=cat_cols[0], values=num_cols[0], title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
                     st.plotly_chart(fig)
-                    # try:
-                        # chart = fig.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-
                 else:
-                    num_categories=df[cat_cols[0]].nunique()
-                    width = 800
-                    height = max(600,num_categories*50)
+                    num_categories = df[cat_cols[0]].nunique()
+                    width, height = 800, max(600, num_categories * 50)
                     df['Color'] = df[num_cols[0]].apply(lambda x: 'grey' if x < 0 else 'blue')
-                    bar=px.bar(df,x=num_cols[0],y=cat_cols[0],title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'",text=num_cols[0],color='Color')
+                    bar = px.bar(df, x=num_cols[0], y=cat_cols[0], title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'", text=num_cols[0], color='Color')
                     bar.update_traces(textposition='outside', textfont_size=12)
-                    bar.update_layout(width=width, height=height)
-                    bar.update_layout(showlegend=False)
+                    bar.update_layout(width=width, height=height, showlegend=False)
                     st.plotly_chart(bar)
-                    # try:
-                        # chart = bar.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-
-
             elif len(cat_cols) == 2:
-
                 plt.figure(figsize=(10, 6))
                 sns.countplot(x=df[cat_cols[0]], hue=df[cat_cols[1]], data=df)
                 plt.title(f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
                 st.pyplot(plt)
-                # try:
-                    # chart = plt.to_html()
-                    # full_response += chart
-                # except:
-                    # st.write("Error in converting chart to html")
-
-
             elif len(date_cols) == 1 and len(num_cols) == 1:
-                fig = px.line(df, x=date_cols[0], y=num_cols[0], title=f'Trend Analysis:{num_cols[0]} vs {date_cols[0]}')
+                fig = px.line(df, x=date_cols[0], y=num_cols[0], title=f'Trend Analysis: {num_cols[0]} vs {date_cols[0]}')
                 st.plotly_chart(fig)
-
-    #             plt.figure(figsize=(10, 6))
-    #             sns.lineplot(x=df[date_cols[0]], y=df[num_cols[0]], data=df)
-    #             plt.title(f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
-    #             st.pyplot(plt)
-                # try:
-                    # chart = plt.to_html()
-                    # full_response += chart
-                # except:
-                    # st.write("Error in converting chart to html")
-
-
             else:
                 sns.pairplot(df)
                 st.pyplot(plt)
-
-        elif len(df.columns)==3 and len(date_cols)==1 and len(num_cols)==2:
-            # Create traces
-            trace1 = go.Bar(
-                x=df[date_cols[0]],
-                y=df[num_cols[0]],
-                name=f'{num_cols[0]}',
-                yaxis='y1'
-            )
-
-            trace2 = go.Scatter(
-                x=df[date_cols[0]],
-                y=df[num_cols[1]],
-                name=f'{num_cols[1]}',
-                yaxis='y2',
-                mode='lines'
-            )
-
-            # Define layout with dual y-axis
+        
+        elif len(df.columns) == 3 and len(date_cols) == 1 and len(num_cols) == 2:
+            trace1 = go.Bar(x=df[date_cols[0]], y=df[num_cols[0]], name=f'{num_cols[0]}', yaxis='y1')
+            trace2 = go.Scatter(x=df[date_cols[0]], y=df[num_cols[1]], name=f'{num_cols[1]}', yaxis='y2', mode='lines')
             layout = go.Layout(
                 title=f'Variation of {num_cols[1]} and {num_cols[0]} with change of {date_cols[0]}',
                 xaxis=dict(title=f'{date_cols[0]}'),
-                yaxis=dict(
-                    title=f'{num_cols[0]}',
-                    titlefont=dict(color='blue'),
-                    tickfont=dict(color='blue')
-                ),
-                yaxis2=dict(
-                    title=f'{num_cols[1]}',
-                    titlefont=dict(color='green'),
-                    tickfont=dict(color='green'),
-                    overlaying='y',
-                    side='right'
-                )
+                yaxis=dict(title=f'{num_cols[0]}', titlefont=dict(color='blue'), tickfont=dict(color='blue')),
+                yaxis2=dict(title=f'{num_cols[1]}', titlefont=dict(color='green'), tickfont=dict(color='green'), overlaying='y', side='right')
             )
-
-            # Create figure
             fig = go.Figure(data=[trace1, trace2], layout=layout)
             st.plotly_chart(fig)
-
-    #         line_plot = go.Scatter(x=df[date_cols[0]], y=df[num_cols[1]], mode='lines', name=f'{num_cols[1]}')
-    #         bar_plot = go.Bar(x=df[date_cols[0]], y=df[num_cols[0]], name=f'{num_cols[0]}')
-    #         fig = go.Figure(data=[line_plot, bar_plot])
-    #         fig.update_layout(
-    #             title=f'Variation of {num_cols[1]} and {num_cols[0]} with change of {date_cols[0]}',
-    #             xaxis_title='Date',
-    #             yaxis_title='Value',
-    #             legend=dict(x=0.1, y=1.1, orientation='h')
-    #         )
-    #         st.plotly_chart(fig)
-
-        elif len(df.columns)==3 and len(cat_cols)>=1:
-
-            col_types = df.dtypes
-
-    #         cat_col = None
-    #         num_cols = []
-
-    #         for col in df.columns:
-    #             if col_types[col] == 'object' and df[col].nunique() == len(df):
-    #                 categorical_col = col
-    #             elif col_types[col] in ['int64', 'float64']:
-    #                 num_cols.append(col)
-    #         st.write(cat_cols,num_cols,len(cat_cols),len(num_cols))
-    #         st.write(type(cat_cols))
-            # Check if we have one categorical and two numerical columns
-            if len(cat_cols)==1 and len(num_cols) == 2:
-    #             df[cat_cols[0]]=df[cat_cols[0]].astype(str)
-    #             df[cat_cols[0]]=df[cat_cols[0]].fillna('NA')
-
-
-                if df[cat_cols[0]].nunique() <= 5 and df[num_cols[0]].sum()>=99 and df[num_cols[0]].sum()<=101:
-                    fig = px.pie(df, names=cat_cols[0], values=num_cols[0], color_discrete_map={'TOTAL':'Green'}, title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
+        
+        elif len(df.columns) == 3 and len(cat_cols) >= 1:
+            if len(cat_cols) == 1 and len(num_cols) == 2:
+                if df[cat_cols[0]].nunique() <= 5 and df[num_cols[0]].sum() >= 99 and df[num_cols[0]].sum() <= 101:
+                    fig = px.pie(df, names=cat_cols[0], values=num_cols[0], title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'")
                     fig2 = px.pie(df, names=cat_cols[0], values=num_cols[1], title=f"Distribution of '{num_cols[1]}' across '{cat_cols[0]}'")
                     st.plotly_chart(fig)
                     st.plotly_chart(fig2)
-                    # try:
-                        # chart = fig.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-                    # try:
-                        # chart = fig2.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-
-
-                else:
-                    num_categories=df[cat_cols[0]].nunique()
-                    width = 800
-                    height = max(600,num_categories*50)
-                    df['Color'] = df[num_cols[0]].apply(lambda x: 'grey' if x < 0 else 'blue')
-                    bar=px.bar(df,x=num_cols[0],y=cat_cols[0],title=f"Distribution of '{num_cols[0]}' across '{cat_cols[0]}'",text=num_cols[0],color='Color')
-                    bar.update_traces(textposition='outside', textfont_size=12)
-                    bar.update_layout(width=width, height=height)
-                    bar.update_layout(showlegend=False)
-                    st.plotly_chart(bar)
-
-                    df['Color'] = df[num_cols[1]].apply(lambda x: 'grey' if x < 0 else 'blue')
-                    bar2=px.bar(df,x=num_cols[1],y=cat_cols[0],title=f"Distribution of '{num_cols[1]}' across '{cat_cols[0]}'",text=num_cols[1],color='Color')
-                    bar2.update_traces(textposition='outside', textfont_size=12)
-                    bar2.update_layout(width=width, height=height)
-                    bar2.update_layout(showlegend=False)
-                    st.plotly_chart(bar2)
-                    # try:
-                        # chart = bar.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-                    # try:
-                        # chart = bar2.to_html()
-                        # full_response += chart
-                    # except:
-                        # st.write("Error in converting chart to html")
-
-            elif len(cat_cols)==2 and len(num_cols) == 1:
-                df[cat_cols[0]]=df[cat_cols[0]].astype(str)
-                df[cat_cols[1]]=df[cat_cols[1]].astype(str)
-                df[cat_cols[0]]=df[cat_cols[0]].fillna('NA')
-                df[cat_cols[1]]=df[cat_cols[1]].fillna('NA')
-
-                list_cat=df[cat_cols[0]].unique()
-                st.write("\n\n")
-                for i in list_cat:
+            elif len(cat_cols) == 2 and len(num_cols) == 1:
+                df[cat_cols[0]] = df[cat_cols[0]].astype(str).fillna('NA')
+                df[cat_cols[1]] = df[cat_cols[1]].astype(str).fillna('NA')
+                for i in df[cat_cols[0]].unique():
                     st.markdown(f"* {i} OVERVIEW *")
-                    df_fltr=df[df[cat_cols[0]]==i]
-                    df_fltr=df_fltr.drop(cat_cols[0],axis=1)
-                    num_categories=df_fltr[cat_cols[1]].nunique()
-    #                 num_categories2=df[cat_cols[1]].nunique()
-                    height = 600 #max(80,num_categories2*20)
-                    width=800
+                    df_fltr = df[df[cat_cols[0]] == i].drop(cat_cols[0], axis=1)
                     df_fltr['Color'] = df_fltr[num_cols[0]].apply(lambda x: 'grey' if x < 0 else 'blue')
-                    bar=px.bar(df_fltr,x=num_cols[0],y=cat_cols[1],title=f"Distribution of '{num_cols[0]}' across '{cat_cols[1]}'",text=num_cols[0],color='Color')
+                    bar = px.bar(df_fltr, x=num_cols[0], y=cat_cols[1], title=f"Distribution of '{num_cols[0]}' across '{cat_cols[1]}'", text=num_cols[0], color='Color')
                     bar.update_traces(textposition='outside', textfont_size=12)
-                    bar.update_layout(width=width, height=height)
-                    bar.update_layout(showlegend=False)
+                    bar.update_layout(width=800, height=600, showlegend=False)
                     st.plotly_chart(bar)
     except:
         pass
     
-
-# Define the context globally
 suggestions_context_devices = """
 Input:
 You are an AI Assistant for an AI tool designed to provide insightful follow-up questions based on the user's initial query. Follow the instructions below strictly:
@@ -2996,26 +3316,54 @@ def prompt_suggestion_devices(user_question):
     return user_query
 
 def sugg_checkbox_devices(user_question):
-    if not st.session_state.prompt_sugg_devices:
-        questions = prompt_suggestion_devices(user_question)
-        print(f"Prompt Suggestions: {questions}")
-        questions = questions.split('\n')
-        questions_new = []
-        for i in questions:
-            if i[0].isdigit():
-                x = i[3:]
-                questions_new.append(x)
-        st.session_state.prompt_sugg_devices = questions_new
-#     checkbox_states = [st.checkbox(question) for question in st.session_state.prompt_sugg]
-    checkbox_states = []
-    checkbox_states = [st.checkbox(st.session_state.prompt_sugg_devices[i],key = f"Checkbox{i}") for i in range(len(st.session_state.prompt_sugg_devices))]
-    for i, state in enumerate(checkbox_states):
-        if state:
-            st.session_state.selected_sugg_devices = st.session_state.prompt_sugg_devices[i]
-            st.experimental_rerun()
-            break
-        st.session_state.selected_sugg_devices = None
-    return st.session_state.selected_sugg_devices
+    try:
+        if "prompt_sugg_devices" not in st.session_state:
+            st.session_state.prompt_sugg_devices = []  # Initialize with an empty list
+        if "selected_sugg_devices" not in st.session_state:
+            st.session_state.selected_sugg_devices = None
+
+        if not st.session_state.prompt_sugg_devices:
+            try:
+                questions = prompt_suggestion_devices(user_question)
+                print(f"Prompt Suggestions: {questions}")
+                questions = questions.split('\n')
+                questions_new = []
+                for i in questions:
+                    if i and i[0].isdigit():  # Ensure 'i' is not empty before indexing
+                        x = i[3:]  # Extract text after number
+                        questions_new.append(x)
+                st.session_state.prompt_sugg_devices = questions_new
+            except Exception as e:
+                print(f"Error while fetching prompt suggestions: {e}")
+                return None  # Return early to avoid further processing
+
+        # Create checkboxes safely
+        checkbox_states = []
+        try:
+            checkbox_states = [st.checkbox(st.session_state.prompt_sugg_devices[i], key=f"Checkbox{i}") 
+                               for i in range(len(st.session_state.prompt_sugg_devices))]
+        except Exception as e:
+            print(f"Error creating checkboxes: {e}")
+            return None  # Return early to prevent crashing
+
+        # Handle checkbox selection safely
+        try:
+            for i, state in enumerate(checkbox_states):
+                if state:
+                    st.session_state.selected_sugg_devices = st.session_state.prompt_sugg_devices[i]
+                    st.experimental_rerun()
+                    break
+                st.session_state.selected_sugg_devices = None
+        except Exception as e:
+            print(f"Error handling checkbox selection: {e}")
+
+        return st.session_state.selected_sugg_devices
+
+    except Exception as e:
+        print(f"Unexpected error in sugg_checkbox_devices: {e}")
+        return None
+    
+
 
 ##################### New Functions for multiple devices ######################################  
     
@@ -3103,7 +3451,6 @@ def match_device(input_str):
                 score = fuzz.token_set_ratio(input_str, i)
                 device_matching.append((i,score))
             sorted_list = sorted(device_matching, key=lambda x: x[1],reverse = True)
-    #         sorted_list = [(x,y) for x,y in sorted_list if y>90]
         else:
             sorted_list = None
         return sorted_list
@@ -3136,16 +3483,20 @@ def identify_all_devices(user_input):
 def get_net_sent(device_names):
     try:
         data = Devices_Sentiment_Data.loc[Devices_Sentiment_Data["Product_Family"].isin(device_names)]
-        net_sentiment = (data["Sentiment_Score"].sum())/(data["Review_Count"].sum())
+        net_sentiment = (data["Sentiment_Score"].sum())/(data["Review_Count"].sum())*100
+        # print(net_sentiment)
     except:
         net_sentiment = None
     try:
-        aspect_sentiment = data.groupby(["Aspect"])["Sentiment_Score"].sum()/data.groupby(["Aspect"])["Review_Count"].sum()
+        aspect_sentiment = data.groupby(["Aspect"])["Sentiment_Score"].sum()/data.groupby(["Aspect"])["Review_Count"].sum()*100
+        # print(aspect_sentiment)
     except:
         aspect_sentiment = None
     return net_sentiment, aspect_sentiment
 
 def get_sales_info(sales_device_name):
+    if "RCR_Sales_Data" in st.session_state:
+            globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
     try:
         sales_data = RCR_Sales_Data.loc[RCR_Sales_Data["Series"].isin(sales_device_name)]
         asp = sales_data["Sales_Value"].sum()/sales_data["Sales_Units"].sum()
@@ -3158,32 +3509,39 @@ def get_sales_info(sales_device_name):
         high_specs_sales_str = str(round(high_specs_sales))+"K"
         chassis_segment = list(sales_data["Chassis_Segment"].unique())
         comp_data = RCR_Sales_Data.loc[(~RCR_Sales_Data["Series"].isin(sales_device_name)) & (RCR_Sales_Data["Chassis_Segment"].isin(chassis_segment))]
-        comp_data = comp_data.groupby(["Series"])["Sales_Value","Sales_Units"].sum().reset_index()
+        # comp_data = comp_data.groupby(["Series"])["Sales_Value","Sales_Units"].sum().reset_index()
+        comp_data = comp_data.groupby(["Series"])[["Sales_Value", "Sales_Units"]].sum().reset_index()
         comp_data["Asp"] = comp_data["Sales_Value"]/comp_data["Sales_Units"]
         comp_data = comp_data.sort_values(by = "Asp",key = lambda col: abs(col-asp)).head(3)
         comp_data = comp_data[["Series","Asp","Sales_Units"]]
         comp_data.columns = ["Series","CompetitorASP","Sales_Units"]
         comp_data["Sales_Units"] = comp_data["Sales_Units"]/1000
         
-    except:
+    except Exception as e:
         print(f"Error occured in get_sales_info for {sales_device_name}")
-        total_sales_str = ""
-        asp_str = ""
-        high_specs = ""
-        high_specs_sales_str = ""
+        print(e)
+        total_sales_str = "NA"
+        asp_str = "NA"
+        high_specs = "NA"
+        high_specs_sales_str = "NA"
         comp_data = pd.DataFrame()
     return total_sales_str,asp_str,high_specs,high_specs_sales_str,comp_data
         
 
 def get_date_range_all(sales_device_names_list):
     try:
+        if "RCR_Sales_Data" in st.session_state:
+            globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
         device_sales_data = RCR_Sales_Data.loc[RCR_Sales_Data["Series"].isin(sales_device_names_list)]
-        device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m/%d/%Y')
+        try:
+            device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m-%d-%Y')
+        except:
+            device_sales_data['Month'] = pd.to_datetime(device_sales_data['Month'], format='%m/%d/%Y')
         min_date = device_sales_data["Month"].min().strftime('%Y-%m-%d')
         max_date = device_sales_data["Month"].max().strftime('%Y-%m-%d')
     except:
-        min_date = "NA"
-        max_date = "NA"
+        min_date = "2024-01-01"
+        max_date = "2025-03-01"
         print(f"Error occured in getting date range for sales data of {sales_device_names_list}")
     return min_date, max_date
 
@@ -3202,6 +3560,8 @@ def get_all_sent_dev_name(device_name):
 
 def get_comp_dev_info(inp,inp_df):
     try:
+        if "RCR_Sales_Data" in st.session_state:
+            globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
         inp_df = inp_df.loc[inp_df["Series"]==inp]
         oem = RCR_Sales_Data.loc[RCR_Sales_Data["Series"]==inp]["OEMGROUP"].unique()[0].upper()
         device_name = oem+" "+inp
@@ -3301,13 +3661,17 @@ def get_device_summary(user_input,device_name):
 
 def comparison_device_details(sent_device_list):
     try:
+        if "RCR_Sales_Data" in st.session_state:
+            globals()["RCR_Sales_Data"] = st.session_state["RCR_Sales_Data"]
         if sent_device_list:
+            print(sent_device_list)
             sales_devices = []
             for i in sent_device_list:
                 sales_devices.append(get_sales_device_name(i))
             sales_devices = list(set(sales_devices))
             oem = RCR_Sales_Data.loc[RCR_Sales_Data["Series"]==sales_devices[0]]["OEMGROUP"].unique()[0].upper()
             device_name = oem+" "+sales_devices[0]
+            print(device_name)
             dev, img_link = get_device_image(sent_device_list[0])
             net_sentiment, aspect_sentiment = get_net_sent(sent_device_list)
             total_sales, asp, high_specs, sale, comp_devices = get_sales_info(sales_devices)
@@ -3348,7 +3712,8 @@ def comparison_device_details(sent_device_list):
             st.session_state.curr_response+=f"Device Name: {device_name}<br><br>"
             if summary_1:
                 st.session_state.curr_response+=f"{summary_1}<br><br>"
-    except:
+    except Exception as e:
+        print(e)
         print(f"Error occured in comparison_device_details()")
         st.write(f"Unable to generate response for the input query. Please rephrase and try again, or contact the developer of the tool.")
 
@@ -3361,7 +3726,8 @@ def comparison_view_sent_devices(device1_list, device2_list):
             comparison_device_details(device1_list)
         with col2:
             comparison_device_details(device2_list)
-    except:
+    except Exception as e:
+        print(e)
         print(f"Error in comparison_view_sent_devices() for {device1_list} and {device2_list}")
         st.write(f"Unable to generate response for the input query. Please rephrase and try again, or contact the developer of the tool.")
 
@@ -3370,11 +3736,11 @@ def dev_comp(device1, device2):
         sent_devices1 = []
         sent_devices2 = []
         out = match_device(device1)
-        out = [x for x,y in out if y>95]
+        out = [x for x,y in out if y>96]
         if out:
             sent_devices1 = out
         out = match_device(device2)
-        out = [x for x,y in out if y>95]
+        out = [x for x,y in out if y>96]
         if out:
             sent_devices2 = out
         if sent_devices1 and sent_devices2:
@@ -3385,8 +3751,9 @@ def dev_comp(device1, device2):
             st.write(f"""Cannot identify "{device1}", please rephrase device name and try again.""")
         else:
             st.write(f"""Cannot identify "{device1}" and "{device2}", please rephrase device names and try again.""")
-    except:
-        print(f"Error in dev_comp() for {device1} and {device2}")
+    except Exception as e:
+        print(e)
+        # print(f"Error in dev_comp() for {device1} and {device2}")
         st.write(f"Unable to generate response for the input query. Please rephrase and try again, or contact the developer of the tool.")
     
 
@@ -3492,6 +3859,154 @@ def device_summ(user_input):
         if st.session_state.selected_devices[1]:
             comparison_view_sent_devices(st.session_state.selected_devices[0],st.session_state.selected_devices[1])
             st.session_state.selected_devices = [None, None]
-    except:
+    except Exception as e:
+        print(e)
         print(f"Error in device_summ() for User Query: {user_input}")
-        st.write(f"Unable to generate response for the input query. Please rephrase and try again, or contact the developer of the tool.")
+        st.write("Unable to generate a response for the input query. Please rephrase and try again, or contact the developer of the tool.")
+
+
+def rephrase_user_question(user_question):
+    prompt_template = """You are an AI assistant designed to accurately rephrase user questions by mapping their terms to the correct column names from sales and sentiment data. Follow the column mappings and country mappings provided below to ensure correct replacements.
+ 
+### **IMPORTANT RULE:**
+- If the user question contains any of the following words (case-insensitive) or therir synonyms: **Compare, Summarize, Aspect-wise** → **DO NOT rephrase the question.** Simply return the user question as the response.
+ 
+ 
+### **Column Mappings**  
+ 
+#### **Geography (Region-related terms)**
+- **User Synonyms:** Region, Location, Area, Country, Geography  
+- **Mapped Columns:**  
+  - **Sales:** `Country` (Full Country Name)  
+  - **Sentiment:** `Geography` (ISO Country Code)  
+ 
+#### **OEM (Brand-related terms)**
+- **User Synonyms:** Manufacturer, Brand, Company, Vendor  
+- **Mapped Columns:**  
+  - **Sales:** `OEMGROUP`  
+  - **Sentiment:** `OEM`  
+  
+#### **Copilot+ PC (AI PC capability-related terms)**
+- **User Synonyms: AI PC, Copilot PC, Copilot+ Device, Copilot-enabled
+
+- **Mapped Columns:
+
+ - **Sales: Copilot+ PC
+
+ - **Sentiment: Copilot+ PC
+
+ - **Allowed Values: 'Yes', 'No' (Filter queries explicitly based on this)
+ 
+#### **Product (Model-related terms)**
+- **User Synonyms:** Device, Laptop, Product  
+- **Mapped Columns:**  
+  - **Sales:** `Series`  
+  - **Sentiment:** `Product_Family`  
+ 
+#### **Chassis (Category-related terms)**
+- **User Synonyms:** SMB Upper, Mainstream Lower, SMB Lower, Enterprise Fleet Lower, 
+Entry, Mainstream Upper, Premium Mobility Upper, Enterprise Fleet Upper, 
+Premium Mobility Lower, Creation Lower, UNDEFINED, Enterprise Work Station, 
+Unknown, Gaming Musclebook, Entry Gaming, Creation Upper, Desktop AIO
+ 
+- **Mapped Columns:**  
+  - **Sales:** `Chassis_Segment`  
+  - **Sentiment:** `Chassis`  
+ 
+#### **OS (Operating System-related terms)**
+- **User Synonyms:** Operating System, OS Type, System Software  
+- **Mapped Columns:**  
+  - **Sales:** `OS_VERSION`, `Operating_System_Summary`  
+  - **Sentiment:** `OSType`  
+ 
+---
+ 
+### **Country Name Mapping Rules**  
+ 
+If the user question is related to **Sales (contains "sales")**, convert country codes to **full country names** as listed in the `Country` column.  
+If the user question is related to **Sentiment (contains "sentiment")**, convert full country names to their **ISO country codes** as listed in the `Geography` column.
+ 
+#### **Mapping Table (Common Countries)**
+| **Sales (Country Name)** | **Sentiment (Geography Code)** |
+|------------------------|----------------------|
+| United States         | US                   |
+| Canada               | CA                   |
+| France               | FR                   |
+| India                | IN                   |
+| Greece               | GR                   |
+| Brazil               | BR                   |
+| Japan                | JP                   |
+| Mexico               | MX                   |
+| United Kingdom       | UK                   |
+| Australia            | AU                   |
+| China                | CN                   |
+ 
+---
+ 
+### **Task Instructions**  
+ 
+1. **Check for special keywords:**  
+   - If the user question contains any of the following words (case-insensitive): **Compare, Summarize, Aspect-wise** or their synonyms, **DO NOT rephrase** the question. Return it as is.  
+ 
+2. **Determine the type of question:**  
+   - Identify whether the question is about **Sales** (contains "sales") or **Sentiment** (contains "sentiment").  
+ 
+3. **Identify and map relevant terms:**  
+   - Detect terms matching the synonyms listed under **Geography, OEM, Product, Chassis, OS** categories.  
+   - Replace these terms with their corresponding mapped column names.  
+ 
+4. **Handle country/region name conversions:**  
+   - For **Sales** questions: Convert country codes (e.g., US → United States).  
+   - For **Sentiment** questions: Convert full country names (e.g., India → IN).  
+ 
+NOTE: Ensure that the output question is clear, concise, and does not include extra symbols like `*`, `_`, or quotes.   
+ 
+---
+ 
+### **Example Cases**  
+ 
+#### **Case 1: Sales Question (Rephrased)**  
+**User Input:**  
+*"Give me the sales trend for Microsoft OEM in US."*  
+**Rephrased Output:**  
+Give me the sales trend for OEMGROUP Microsoft in Country United States. 
+ 
+#### **Case 2: Sentiment Question (Rephrased)**  
+**User Input:**  
+*"What is the sentiment trend for Dell laptops in India?"*  
+**Rephrased Output:**  
+What is the sentiment trend for OEM Dell in Geography IN?
+ 
+#### **Case 3: Compare/Summarize Question (Returned as-is)**  
+**User Input:**  
+*"Compare Microsoft Surface Pro 9 with HP Spectre."*  
+**Output (Same as input):**  
+Compare Microsoft Surface Pro 9 with HP Spectre.
+ 
+**User Input:**  
+*"Summarize the reviews for Microsoft Surface Pro 9"*  
+**Output (Same as input):**  
+Summarize the reviews for Microsoft Surface Pro 9.
+ 
+ 
+**User Input:**  
+*"Give me aspect wise sentiment of Microsoft Surface Pro 9"*  
+**Output (Same as input):**  
+Give me aspect wise sentiment of Microsoft Surface Pro 9.
+
+
+---
+ 
+### **Now process the following user question:**  
+ 
+**User Question:** {user_question}  
+**Rephrased Output:**  
+"""
+ 
+    response = client.completions.create(
+        model=deployment_name,
+        prompt=prompt_template.format(user_question=user_question),
+        max_tokens=100,
+        temperature=0.0
+    )
+    return response.choices[0].text.strip()

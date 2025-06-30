@@ -34,24 +34,32 @@ import requests
 from io import BytesIO
 import io
 from devices_library import *
+from Copilot_Approach2_Code import * 
+from Prediction_Model_V1 import *
+from OS_Prediction import *
 global history
 import os
 import json
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
+global positive_aspects, negative_aspects 
+
 
 file_path = 'chat_history.json'
 
-def load_list_new():
+def load_list():
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             return json.load(file)
     else:
         return []
 
-def save_list_new(lst):
+def save_list(lst):
     with open(file_path, 'w') as file:
         json.dump(lst, file)
         
-history = load_list_new()
+history = load_list()
 
 print(f"I have this history : {history}")
 
@@ -101,7 +109,7 @@ if not hasattr(st.session_state, 'copilot_curr_ques'):
     st.session_state.copilot_curr_ques = None
 ####################################################################################################################----------------Copilot-------------------#####################################################################################################
 
-Copilot_Sentiment_Data  = pd.read_csv("Cleaned_Data_New_Aspects.csv")
+Copilot_Sentiment_Data  = pd.read_csv("Cleaned_Combined_Data_V1.csv")  
 
 st.markdown("""
 <head>
@@ -109,11 +117,11 @@ st.markdown("""
 </head>
 """, unsafe_allow_html=True)
 
-def Sentiment_Score_Derivation_new(value):
+def Sentiment_Score_Derivation(value):
     try:
-        if value == "Positive":
+        if value == "positive":
             return 1
-        elif value == "Negative":
+        elif value == "negative":
             return -1
         else:
             return 0
@@ -122,7 +130,7 @@ def Sentiment_Score_Derivation_new(value):
         return err    
 
 #Deriving Sentiment Score and Review Count columns into the dataset
-Copilot_Sentiment_Data["Sentiment_Score"] = Copilot_Sentiment_Data["Sentiment"].apply(Sentiment_Score_Derivation_new)
+Copilot_Sentiment_Data["Sentiment_Score"] = Copilot_Sentiment_Data["Sentiment"].apply(Sentiment_Score_Derivation)
 Copilot_Sentiment_Data["Review_Count"] = 1.0
 Copilot_Sentiment_Data["Product"] = Copilot_Sentiment_Data["Product"].astype(str).str.upper()
 Copilot_Sentiment_Data["Product_Family"] = Copilot_Sentiment_Data["Product_Family"].astype(str).str.upper()
@@ -132,7 +140,7 @@ Copilot_Sentiment_Data["Keywords"] = Copilot_Sentiment_Data["Keywords"].astype(s
 #overall_review_count = sum(Copilot_Sentiment_Data["Review_Count"])
 
 
-def convert_top_to_limit_new(sql):
+def convert_top_to_limit(sql):
     try:
         tokens = sql.upper().split()
         is_top_used = False
@@ -155,7 +163,7 @@ def convert_top_to_limit_new(sql):
         err = f"An error occurred while converting Top to Limit in SQL Query: {e}"
         return err
 
-def process_tablename_new(sql, table_name):
+def process_tablename(sql, table_name):
     try:
         x = sql.upper()
         query = x.replace(table_name.upper(), table_name)
@@ -165,9 +173,9 @@ def process_tablename_new(sql, table_name):
             query = query.replace("="," LIKE ")
             
             pattern = r"LIKE\s'([^']*)'"
-            def add_percentage_signs_new(match):
+            def add_percentage_signs(match):
                 return f"LIKE '%{match.group(1)}%'"
-            query = re.sub(pattern, add_percentage_signs_new, query)
+            query = re.sub(pattern, add_percentage_signs, query)
         
         return query
     except Exception as e:
@@ -176,7 +184,7 @@ def process_tablename_new(sql, table_name):
  
 #-------------------------------------------------------------------------------------------------------Summarization-------------------------------------------------------------------------------------------------------#
  
-def get_conversational_chain_quant_new():
+def get_conversational_chain_quant():
     global model
     try:
         prompt_template = """
@@ -192,7 +200,7 @@ def get_conversational_chain_quant_new():
                     - Product: Corresponding product for the review. The possible values are 'COPILOT','OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI'
                     - Product_Family: Version or type of the corresponding product for which the review was posted. The possible values are: 'Windows Copilot', 'Microsoft Copilot', 'Copilot for Security', 'Copilot Pro', 'Copilot for Microsoft 365', 'Edge Copilot', 'Github Copilot', 'Copilot for Mobile', 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI', 'Gemini AI For Mobile', 'ChatGPT For Mobile', 'Perplexity AI For Mobile', 'Claude AI For Mobile'.
                     - Sentiment: Sentiment of the review. The possible values are: 'positive', 'neutral', 'negative'
-                    - Aspect: Aspect or feature of the product being reviewed. The possible values are: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
+                    - Aspect: Aspect or feature of the product being reviewed. The possible values are: 'Interface', 'Connectivity', 'Privacy', 'Compatibility', 'Generic', 'Innovation', 'Reliability', 'Productivity', 'Price', 'Text Summarization/Generation', 'Code Generation', 'Ease of Use', 'Performance', 'Personalization/Customization', 'Accessibility','End User Usecase'
                     - Keywords: Keywords mentioned in the review
                     - Review_Count: Always 1 for each review or each row
                     - Sentiment_Score: 1 for positive, 0 for neutral, and -1 for negative sentiment
@@ -327,8 +335,7 @@ def get_conversational_chain_quant_new():
                    FROM Copilot_Sentiment_Data
                    WHERE Geography LIKE "%US%"
                    
-           IMPORTANT : These are the aspects we have :'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
-
+           IMPORTANT : These are the aspects we have : 'Interface', 'Connectivity', 'Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility','End User Usecase', 'Image Generation'.
                     But user who writes the question might not know the exact name of the aspect we have, for example : User might write "Picture Generation" for 'Image Generarion' and "writing codes" for code generation. 
                     You should be carefull while rephrasing it.
             
@@ -364,7 +371,7 @@ def get_conversational_chain_quant_new():
         
 
 #Function to convert user prompt to quantitative outputs for Copilot Review Summarization
-def query_quant_new(user_question,history,vector_store_path="combined_indexes_Approach"):
+def query_quant(user_question,history,vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         # Initialize the embeddings model
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
@@ -373,12 +380,12 @@ def query_quant_new(user_question,history,vector_store_path="combined_indexes_Ap
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
         
         # Rest of the function remains unchanged
-        chain = get_conversational_chain_quant_new()
+        chain = get_conversational_chain_quant()
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         SQL_Query = response["output_text"]
-        SQL_Query = convert_top_to_limit_new(SQL_Query)
-        SQL_Query = process_tablename_new(SQL_Query,"Copilot_Sentiment_Data")
+        SQL_Query = convert_top_to_limit(SQL_Query)
+        SQL_Query = process_tablename(SQL_Query,"Copilot_Sentiment_Data")
         print(SQL_Query)
         # st.write(SQL_Query)
         data = ps.sqldf(SQL_Query, globals())
@@ -392,7 +399,7 @@ def query_quant_new(user_question,history,vector_store_path="combined_indexes_Ap
 
 
 
-def get_conversational_chain_aspect_wise_detailed_summary_new():
+def get_conversational_chain_aspect_wise_detailed_summary():
     global model
     try:
         prompt_template = """
@@ -487,11 +494,11 @@ def get_conversational_chain_aspect_wise_detailed_summary_new():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_aspect_wise_detailed_summary_new(user_question,vector_store_path="combined_indexes_Approach"):
+def query_aspect_wise_detailed_summary(user_question,vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        chain = get_conversational_chain_aspect_wise_detailed_summary_new()
+        chain = get_conversational_chain_aspect_wise_detailed_summary()
         print("I have the chain")
         docs = vector_store.similarity_search(user_question)
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
@@ -503,7 +510,7 @@ def query_aspect_wise_detailed_summary_new(user_question,vector_store_path="comb
 
 #----------------------------------------------------------------------------------------------------------------------Visualization------------------------------------------------------------------------#
 
-def get_conversational_chain_quant_classify2_compare_new():
+def get_conversational_chain_quant_classify2_compare():
     global model
     try:
         prompt_template = """
@@ -519,7 +526,7 @@ def get_conversational_chain_quant_classify2_compare_new():
                     - Product: Corresponding product for the review. The possible values are 'COPILOT','OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI'
                     - Product_Family: Version or type of the corresponding product for which the review was posted. The possible values are: 'Windows Copilot', 'Microsoft Copilot', 'Copilot for Security', 'Copilot Pro', 'Copilot for Microsoft 365', 'Edge Copilot', 'Github Copilot', 'Copilot for Mobile', 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI', 'Gemini AI For Mobile', 'ChatGPT For Mobile', 'Perplexity AI For Mobile', 'Claude AI For Mobile'
                     - Sentiment: Sentiment of the review. The possible values are: 'positive', 'neutral', 'negative'
-                    - Aspect: Aspect or feature of the product being reviewed. The possible values are: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
+                    - Aspect: Aspect or feature of the product being reviewed. The possible values are: 'Interface', 'Connectivity', 'Privacy', 'Compatibility', 'Generic', 'Innovation', 'Reliability', 'Productivity', 'Price', 'Text Summarization/Generation', 'Code Generation', 'Ease of Use', 'Performance', 'Personalization/Customization', 'Accessibility','End User Usecase'
                     - Keywords: Keywords mentioned in the review
                     - Review_Count: Always 1 for each review or each row
                     - Sentiment_Score: 1 for positive, 0 for neutral, and -1 for negative sentiment
@@ -548,8 +555,7 @@ def get_conversational_chain_quant_classify2_compare_new():
                     IMPORTANT : User can confuse a lot, but understand the question carefully and respond:
             Example : I am a story writer , Can you tell me which AI is good for writing stories based on user reviews? -> In this case, user confuses by telling that he is a story teller and all but he just needs to know "What is the best AI for Text Generation" -> Which is again decided based on comparison.
                     
-                    IMPORTANT : These are the aspects we have : 'AdminHelper', 'AppIntegration','Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
-
+                    IMPORTANT : These are the aspects we have : 'Interface', 'Connectivity', 'Security/Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility','End User Usecase', 'Image Generation'.
                     But user who writes the question might not know the exact name of the aspect we have, for example : User might write "Picture Generation" for 'Image Generarion' and "writing codes" for code generation. 
                     You should be carefull while rephrasing it.
                    
@@ -938,7 +944,7 @@ def get_conversational_chain_quant_classify2_compare_new():
         err = f"An error occurred while getting conversation chain for quantifiable review summarization: {e}"
         return err
 
-def query_quant_classify2_compare_new(user_question, vector_store_path="combined_indexes_Approach"):
+def query_quant_classify2_compare(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     global history
     try:
         # Initialize the embeddings model
@@ -948,13 +954,13 @@ def query_quant_classify2_compare_new(user_question, vector_store_path="combined
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
         
         # Rest of the function remains unchanged
-        chain = get_conversational_chain_quant_classify2_compare_new()
+        chain = get_conversational_chain_quant_classify2_compare()
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         SQL_Query = response["output_text"]
         # st.write(SQL_Query)
-        SQL_Query = convert_top_to_limit_new(SQL_Query)
-        SQL_Query = process_tablename_new(SQL_Query,"Copilot_Sentiment_Data")
+        SQL_Query = convert_top_to_limit(SQL_Query)
+        SQL_Query = process_tablename(SQL_Query,"Copilot_Sentiment_Data")
         print(SQL_Query)
         # st.write(SQL_Query)
         data = ps.sqldf(SQL_Query, globals())
@@ -968,7 +974,7 @@ def query_quant_classify2_compare_new(user_question, vector_store_path="combined
     
 
 
-def get_conversational_chain_quant_classify2_new():
+def get_conversational_chain_quant_classify2():
     global model
     try:
         prompt_template = """
@@ -992,7 +998,7 @@ def get_conversational_chain_quant_classify2_new():
          
                         Product_Family: Which version or type of the corresponding Product was the review posted for. Different Product Names  - It contains following Values - 'Windows Copilot', 'Microsoft Copilot', 'Copilot for Security', 'Copilot Pro', 'Copilot for Microsoft 365', 'Edge Copilot', 'Github Copilot', 'Copilot for Mobile', 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI', 'Gemini AI For Mobile', 'ChatGPT For Mobile', 'Perplexity AI For Mobile', 'Claude AI For Mobile']
                         Sentiment: What is the sentiment of the review. It contains following values: 'positive', 'neutral', 'negative'.
-                        Aspect: Aspect or feature of the product being reviewed. The possible values are: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
+                        Aspect: The review is talking about which aspect or feature of the product. It contains following values: 'Interface', 'Connectivity', 'Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility'.
                         Keywords: What are the keywords mentioned in the product
                         Review_Count - It will be 1 for each review or each row
                         Sentiment_Score - It will be 1, 0 or -1 based on the Sentiment.
@@ -1011,8 +1017,7 @@ def get_conversational_chain_quant_classify2_new():
                 Consider Product_Family Column to get different AI names.
 
 
-                IMPORTANT : These are the aspects we have : 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
-
+                IMPORTANT : These are the aspects we have : 'Interface', 'Connectivity', 'Security/Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility','End User Usecase', 'Image Generation'.
                     But user who writes the question might not know the exact name of the aspect we have, for example : User might write "Picture Generation" for 'Image Generarion' and "writing codes" for code generation. 
                     You should be carefull while rephrasing it. 
 
@@ -1103,7 +1108,7 @@ Consider Product_Family Column to get different AI names.
         err = f"An error occurred while getting conversation chain for quantifiable review summarization: {e}"
         return err
 
-def query_quant_classify2_new(user_question, vector_store_path="combined_indexes_Approach"):
+def query_quant_classify2(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         # Initialize the embeddings model
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
@@ -1112,13 +1117,13 @@ def query_quant_classify2_new(user_question, vector_store_path="combined_indexes
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
         
         # Rest of the function remains unchanged
-        chain = get_conversational_chain_quant_classify2_new()
+        chain = get_conversational_chain_quant_classify2()
         docs = []
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         SQL_Query = response["output_text"]
         # st.write(SQL_Query)
-        SQL_Query = convert_top_to_limit_new(SQL_Query)
-        SQL_Query = process_tablename_new(SQL_Query,"Copilot_Sentiment_Data")
+        SQL_Query = convert_top_to_limit(SQL_Query)
+        SQL_Query = process_tablename(SQL_Query,"Copilot_Sentiment_Data")
         #st.write(SQL_Query)
         
         #Extract required filters applied on Copilot_Sentiment_Data dataframe
@@ -1185,7 +1190,7 @@ def query_quant_classify2_new(user_question, vector_store_path="combined_indexes
         return err
 
 
-def get_conversational_chain_detailed_summary_new():
+def get_conversational_chain_detailed_summary():
     global model
     try:
         #st.write("hi-inside summary func")
@@ -1265,24 +1270,24 @@ def get_conversational_chain_detailed_summary_new():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_detailed_summary_new(dataframe_as_dict,user_question, history, vector_store_path="combined_indexes_Approach"):
+def query_detailed_summary(dataframe_as_dict,user_question, history, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         #st.write("hi")
 #         st.write(user_question)
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        chain = get_conversational_chain_detailed_summary_new()
+        chain = get_conversational_chain_detailed_summary()
         docs = vector_store.similarity_search(user_question)
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
     except Exception as e:
         #st.write(e)
         #st.write("hi2")
-        err = generate_chart_insight_llm_new(dataframe_as_dict)
+        err = generate_chart_insight_llm(dataframe_as_dict)
         #st.write(e)
         return err
         
-def generate_chart_insight_llm_new(user_question):
+def generate_chart_insight_llm(user_question):
     global model
     try:
         prompt_template = """
@@ -1310,10 +1315,10 @@ def generate_chart_insight_llm_new(user_question):
         err = "Apologies, unable to generate insights based on the provided input data. Kindly refine your search query and try again!"
         return err
 
-def quantifiable_data_new(user_question):
+def quantifiable_data(user_question):
     try:
         #st.write("correct_func")
-        response = query_quant_classify2_new(user_question)
+        response = query_quant_classify2(user_question)
         
         return response
     except Exception as e:
@@ -1321,8 +1326,8 @@ def quantifiable_data_new(user_question):
         return err
         
 
-def generate_chart_new(df):
-    global full_response_new
+def generate_chart(df):
+    global full_response
     # Determine the data types of the columns
 #     if df.shape[0] == 1:
 #         #print("hi")
@@ -1376,7 +1381,7 @@ def generate_chart_new(df):
             st.pyplot(plt)
             # try:
                 # chart = plt.to_html()
-                # full_response_new += chart
+                # full_response += chart
             # except:
                 # st.write("Error in converting chart to html")
 
@@ -1389,7 +1394,7 @@ def generate_chart_new(df):
             st.pyplot(plt)
             # try:
                 # chart = plt.to_html()
-                # full_response_new += chart
+                # full_response += chart
             # except:
                 # st.write("Error in converting chart to html")
 
@@ -1400,7 +1405,7 @@ def generate_chart_new(df):
                 st.plotly_chart(fig)
                 # try:
                     # chart = fig.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
 
@@ -1416,7 +1421,7 @@ def generate_chart_new(df):
                 st.plotly_chart(bar)
                 # try:
                     # chart = bar.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
 
@@ -1429,7 +1434,7 @@ def generate_chart_new(df):
             st.pyplot(plt)
             # try:
                 # chart = plt.to_html()
-                # full_response_new += chart
+                # full_response += chart
             # except:
                 # st.write("Error in converting chart to html")
 
@@ -1444,7 +1449,7 @@ def generate_chart_new(df):
 #             st.pyplot(plt)
             # try:
                 # chart = plt.to_html()
-                # full_response_new += chart
+                # full_response += chart
             # except:
                 # st.write("Error in converting chart to html")
 
@@ -1530,12 +1535,12 @@ def generate_chart_new(df):
                 st.plotly_chart(fig2)
                 # try:
                     # chart = fig.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
                 # try:
                     # chart = fig2.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
                 
@@ -1559,12 +1564,12 @@ def generate_chart_new(df):
                 st.plotly_chart(bar2)
                 # try:
                     # chart = bar.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
                 # try:
                     # chart = bar2.to_html()
-                    # full_response_new += chart
+                    # full_response += chart
                 # except:
                     # st.write("Error in converting chart to html")
                 
@@ -1593,7 +1598,7 @@ def generate_chart_new(df):
 
 #------------------------------------------------------------------------------------- Generic  ---------------------------------------------------------------------------------------#
 
-def get_conversational_chain_generic_new():
+def get_conversational_chain_generic():
     global model
     global history
     try:
@@ -1632,12 +1637,14 @@ def get_conversational_chain_generic_new():
         Understanding User Queries:
         1. Carefully read and understand the full user's question.
         2. If the question is outside the scope of the dataset, respond with: "Apologies! Your query falls outside my expertise. Could you please refine it to focus on AI assistance?"
+        3. Respond accurately based on the provided Copilot Products and its Competitors like 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI'.
         Context:\n {context}?\n
         Question: \n{question}\n
  
         Answer:
         """
-        prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])        
+        prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+        
         chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
         return chain
     except Exception as e:
@@ -1646,22 +1653,22 @@ def get_conversational_chain_generic_new():
         
         
         
-def query_detailed_generic_new(user_question, vector_store_path="combined_indexes_Approach"):
+def query_detailed_generic(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        chain = get_conversational_chain_generic_new()
+        chain = get_conversational_chain_generic()
         docs = vector_store.similarity_search(user_question)
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
     except Exception as e:
         print(e)
-        err = f"Hello! I can help you analyze reviews with insights, comparisons, and feature recommendations."
+        err = f"Hello! I can assist with Comparison, Summarization, Aspect-wise Net Sentiment Analysis, and Visualization. If your query doesn't match these capabilities, kindly rephrase or frame your question around these areas. I'm here to help!"
         return err
 
 #----------------------------------------------------------Split Table--------------------------------------------------------------#
 
-def split_table_new(data,device_a,device_b):
+def split_table(data,device_a,device_b):
     # Initialize empty lists for each product
     copilot_index = data[data["ASPECT"] == str(device_b).upper()].index[0]
     if copilot_index != 0:
@@ -1676,7 +1683,7 @@ def split_table_new(data,device_a,device_b):
     
 #-----------------------------------------------------------Miscellaneous----------------------------------------------------------------#
 
-def make_desired_df_new(data):
+def make_desired_df(data):
     try:
         # Create DataFrame from the dictionary
         df1 = pd.DataFrame(data)
@@ -1748,7 +1755,7 @@ def make_desired_df_new(data):
 
 import numpy as np
 
-def custom_color_gradient_new(val, vmin=-100, vmax=100):
+def custom_color_gradient(val, vmin=-100, vmax=100):
     green_hex = '#347c47'
     middle_hex = '#dcdcdc'
     lower_hex = '#b0343c'
@@ -1777,7 +1784,7 @@ def custom_color_gradient_new(val, vmin=-100, vmax=100):
     return f'background-color: {hex_color}; color: black;'
 
 
-def custom_color_gradient_compare_new(val, vmin=-100, vmax=100):
+def custom_color_gradient_compare(val, vmin=-100, vmax=100):
     green_hex = '#347c47'
     middle_hex = '#dcdcdc'
     lower_hex = '#b0343c'
@@ -1811,7 +1818,7 @@ def custom_color_gradient_compare_new(val, vmin=-100, vmax=100):
 
 
 
-def get_final_df_new(aspects_list,device):
+def get_final_df(aspects_list,device):
     final_df = pd.DataFrame()
     device = device
     aspects_list = aspects_list
@@ -1857,7 +1864,7 @@ def get_final_df_new(aspects_list,device):
     
 #-----------------------------------------------Classify Flow---------------------------------------------------#
 
-def classify_new(user_question):
+def classify(user_question):
     global model
     try:
         prompt_template = """
@@ -1944,7 +1951,7 @@ Instructions:
             
             
                 Sentiment: What is the sentiment of the review. It contains following values: 'positive', 'neutral', 'negative'.
-                Aspect: Aspect or feature of the product being reviewed. The possible values are: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
+                Aspect: The review is talking about which aspect or feature of the product. It contains following values: 'Interface', 'Connectivity', 'Security/Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility', 'Image Generation', 'End User Usecase'
                 Keywords: What are the keywords mentioned in the product
                 Review_Count - It will be 1 for each review or each row
                 Sentiment_Score - It will be 1, 0 or -1 based on the Sentiment.
@@ -2005,6 +2012,7 @@ Comparison:
 Generic:
 
         -For general questions about any Product Family.
+        -For general questions like how are you?, Hello, 
         -Choose this for queries about pros and cons, common complaints, and top verbatims.
         -Also, choose this if the question involves more than two Product Families.
         -Choose this, if the question ask to summarize reviews for a Apect/feature of any Product or multiple products.
@@ -2031,14 +2039,10 @@ Your response should be one of the following:
 “Comparison”
 “Generic”
 
-Following is the previous conversation from User and Response, use it to get context only:""" + str(history) + """\n
-Use the above conversation chain to gain context if the current prompt requires context from previous conversation.\n. 
-
-
 VERY IMPORTANT : When user asks uses references like "from previous response", ":from above response" or "from above", Please refer the previous conversation and respond accordingly.
 """
 
-def classify_prompts_new(user_question):
+def classify_prompts(user_question):
     global context_Prompt
     # Append the new question to the context
     full_prompt = context_Prompt + "\nQuestion:\n" + user_question + "\nAnswer:"
@@ -2062,7 +2066,7 @@ def classify_prompts_new(user_question):
 #-----------------------------------------------------------------------------------------Comparision------------------------------------------------------------------------------------#
 
 
-def get_conversational_chain_detailed_compare_new():
+def get_conversational_chain_detailed_compare():
     global model
     global history
     try:
@@ -2154,11 +2158,11 @@ def get_conversational_chain_detailed_compare_new():
         return err
 
 # Function to handle user queries using the existing vector store
-def query_detailed_compare_new(user_question, vector_store_path="combined_indexes_Approach"):
+def query_detailed_compare(user_question, vector_store_path="faiss_index_Cleaned_Copilot_Data"):
     try:
         embeddings = AzureOpenAIEmbeddings(azure_deployment="MV_Agusta")
         vector_store = FAISS.load_local(vector_store_path, embeddings, allow_dangerous_deserialization=True)
-        chain = get_conversational_chain_detailed_compare_new()
+        chain = get_conversational_chain_detailed_compare()
         docs = vector_store.similarity_search(user_question)
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         return response["output_text"]
@@ -2167,7 +2171,7 @@ def query_detailed_compare_new(user_question, vector_store_path="combined_indexe
         return err
         
         
-def check_history_length_new(a,last_response):
+def check_history_length(a,last_response):
     if len(a) > 3:
         a.pop(0)
     else:
@@ -2186,7 +2190,7 @@ from openai import AzureOpenAI
     
 deployment_name='Surface_Analytics'
 
-Rephrase_prompt = """
+rephrase_Prompt = """
  
  
 You are an AI Chatbot assistant. Carefully understand the user's question and follow these instructions.
@@ -2217,7 +2221,7 @@ Below are the available column names and values from the Copilot sentiment data:
                 and whenever user asks for compare different versions of copilot, the user meant compare  'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI', 'Gemini AI For Mobile', 'ChatGPT For Mobile', 'Perplexity AI For Mobile', 'Claude AI For Mobile'. - Note : These are from Product_Family Column not from Product 
                 
                 Sentiment: What is the sentiment of the review. It contains following values: 'positive', 'neutral', 'negative'.
-                Aspect: Aspect or feature of the product being reviewed. The possible values are: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
+                Aspect: The review is talking about which aspect or feature of the product. It contains following values: 'Interface', 'Connectivity', 'Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility','End User Usecase'.
                 Keywords: What are the keywords mentioned in the product
                 Review_Count - It will be 1 for each review or each row
                 Sentiment_Score - It will be 1, 0 or -1 based on the Sentiment.
@@ -2243,8 +2247,7 @@ Below are the available column names and values from the Copilot sentiment data:
         Note : Product column contains : ['COPILOT','OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI' ]
         IF user is asking about AI in whole, use all the Product Family name.
         
-        IMPORTANT : These are the aspects we have : 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
-
+        IMPORTANT : These are the aspects we have : 'Interface', 'Connectivity', 'Privacy','Compatibility', 'Generic', 'Innovation', 'Reliability','Productivity', 'Price', 'Text Summarization/Generation','Code Generation', 'Ease of Use', 'Performance','Personalization/Customization','Accessibility','End User Usecase', 'Image Generation'.
         But user who writes the question might not know the exact name of the aspect we have, for example : User might write "Picture Generation" for 'Image Generarion' and "writing codes" for code generation. 
         You should be carefull while rephrasing it.
         
@@ -2306,10 +2309,10 @@ IMPORTANT: If the input sentence mentions a device(Laptop or Desktop) instead of
  
 """
 
-def rephrase_prompt_new(user_question):
-    global Rephrase_prompt
+def rephrase_prompt(user_question):
+    global rephrase_Prompt
     # Append the new question to the context
-    full_prompt = Rephrase_prompt + "\nQuestion:\n" + user_question + "\nAnswer:"
+    full_prompt = rephrase_Prompt + "\nQuestion:\n" + user_question + "\nAnswer:"
     # Send the query to Azure OpenAI
     response = client.completions.create(
         model=deployment_name,
@@ -2322,12 +2325,12 @@ def rephrase_prompt_new(user_question):
     user_query = response.choices[0].text.strip()
     
     # Update context with the latest interaction
-    Rephrase_prompt += "\nQuestion:\n" + user_question + "\nAnswer:\n" + user_query
+    rephrase_Prompt += "\nQuestion:\n" + user_question + "\nAnswer:\n" + user_query
     
     return user_query   
     
     
-def identify_columns_new(data):
+def identify_columns(data):
     a = data.columns
     if 'ASPECT' in a:
         return 'ASPECT'
@@ -2344,8 +2347,8 @@ def identify_columns_new(data):
 #--------------------------------------------------------Main Function-------------------------------------------------#
 
 
-def user_ques_new(user_question_1, user_question, classification, user_question_chart):
-    global full_response_new
+def user_ques(user_question_1, user_question, classification, user_question_chart):
+    global full_response
     global history
     if user_question_1:
         device_list = Copilot_Sentiment_Data['Product_Family'].to_list()
@@ -2373,11 +2376,11 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
 
         if classification == "Comparison":
             try:
-                data = query_quant_classify2_compare_new(user_question_1)
+                data = query_quant_classify2_compare(user_question_1)
                 # st.dataframe(data)
                 data_formatted = data
                 print(data_formatted)
-                column_found = identify_columns_new(data_formatted)
+                column_found = identify_columns(data_formatted)
                 print(column_found)
                 dataframe_as_dict = data_formatted.to_dict(orient='records')
                
@@ -2425,26 +2428,26 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
                         pivot_df = pivot_df.astype(int)
                     except:
                         pass
-                    styled_df_comaparison = pivot_df.style.applymap(custom_color_gradient_compare_new)
+                    styled_df_comaparison = pivot_df.style.applymap(custom_color_gradient_compare)
                     styled_df_comaparison_new = styled_df_comaparison.set_properties(**{'text-align': 'center'})
                     st.dataframe(styled_df_comaparison_new)
                     styled_df_comaparison_html = styled_df_comaparison.to_html(index=False)
-                    full_response_new += styled_df_comaparison_html
+                    full_response += styled_df_comaparison_html
                 except Exception as e:
                     print(e)
                     pass
-                comparision_summary = query_detailed_compare_new(user_question + "Which have the following sentiment data" + str(dataframe_as_dict))
+                comparision_summary = query_detailed_compare(user_question + "Which have the following sentiment data" + str(dataframe_as_dict))
                 st.write(comparision_summary)
-                full_response_new += comparision_summary
-                history = check_history_length_new(history,comparision_summary)
-                save_list_new(history) 
+                full_response += comparision_summary
+                history = check_history_length(history,comparision_summary)
+                save_list(history) 
             except:
                 try:
-                    comparision_summary = query_detailed_compare_new(user_question + "Which have the following sentiment data" + str(dataframe_as_dict))
+                    comparision_summary = query_detailed_compare(user_question + "Which have the following sentiment data" + str(dataframe_as_dict))
                     st.write(comparision_summary)
-                    full_response_new += comparision_summary
-                    history = check_history_length_new(history,comparision_summary)
-                    save_list_new(history)
+                    full_response += comparision_summary
+                    history = check_history_length(history,comparision_summary)
+                    save_list(history)
                 except:
                     error = "Unable to fetch relevant details based on the provided input. Kindly refine your search query and try again!"
                     st.write(error)   
@@ -2454,7 +2457,7 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
         
             try:
                 try:
-                    data = query_quant_new(user_question_1,[])
+                    data = query_quant(user_question_1,[])
                     print(data)
                 except:
                     pass
@@ -2472,7 +2475,7 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
                 except:
                     pass
 
-                # classify_function = classify_new(user_question_1+str(dataframe_as_dict))
+                # classify_function = classify(user_question_1+str(dataframe_as_dict))
                 if classification == "Summarization":
                     classify_function = "1"
                 else:
@@ -2485,26 +2488,26 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
                     data_new = data_new.dropna(subset=['ASPECT_SENTIMENT'])
                     data_new = data_new[~data_new["ASPECT"].isin([ "Generic", "Account", "Customer-Service", "Browser"])]   
                     dataframe_as_dict = data_new.to_dict(orient='records')
-                    data_new = make_desired_df_new(data_new)
-                    styled_df = data_new.style.applymap(lambda x: custom_color_gradient_new(x, int(-100), int(100)), subset=['ASPECT_SENTIMENT'])
+                    data_new = make_desired_df(data_new)
+                    styled_df = data_new.style.applymap(lambda x: custom_color_gradient(x, int(-100), int(100)), subset=['ASPECT_SENTIMENT'])
                     data_filtered = data_new[(data_new['ASPECT'] != 'TOTAL') & (data_new['ASPECT'] != 'Generic')]
                     top_four_aspects = data_filtered.head(4)
                     aspects_list = top_four_aspects['ASPECT'].to_list()
             #         formatted_aspects = ', '.join(f"'{aspect}'" for aspect in aspects_list)
-                    key_df = get_final_df_new(aspects_list, device)
+                    key_df = get_final_df(aspects_list, device)
                     print(key_df)
                     b =  key_df.to_dict(orient='records')
-                    summary_ans = query_aspect_wise_detailed_summary_new(user_question+"which have the following sentiment :" + str(dataframe_as_dict) + "and these are the imporatnt aspect based on aspect ranking : " + str(aspects_list) + "and their respective keywords" + str(b))
+                    summary_ans = query_aspect_wise_detailed_summary(user_question+"which have the following sentiment :" + str(dataframe_as_dict) + "and these are the imporatnt aspect based on aspect ranking : " + str(aspects_list) + "and their respective keywords" + str(b))
                     st.write(summary_ans)
-                    full_response_new += summary_ans
+                    full_response += summary_ans
                     st.dataframe(styled_df)
-                    history = check_history_length_new(history,summary_ans)
-                    save_list_new(history)
+                    history = check_history_length(history,summary_ans)
+                    save_list(history)
                     styled_df_html = styled_df.to_html(index=False)
-                    full_response_new += styled_df_html  # Initialize full_response_new with the HTML table
+                    full_response += styled_df_html  # Initialize full_response with the HTML table
                                 
                 elif classify_function == "2":
-                    data= quantifiable_data_new(user_question_chart)
+                    data= quantifiable_data(user_question_chart)
                     if 'NET_SENTIMENT' in data.columns:
                         overall_net_sentiment=data['NET_SENTIMENT'][0]
                         overall_net_sentiment = round(overall_net_sentiment, 1)
@@ -2519,10 +2522,10 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
                         visual_data=data.copy()
                         numerical_cols = visual_data.select_dtypes(include='number').columns
                         visual_data[numerical_cols] = visual_data[numerical_cols].apply(lambda x: x.round(1) if x.dtype == 'float' else x)
-                        generate_chart_new(visual_data)
+                        generate_chart(visual_data)
                         
                         visual_data = visual_data[~visual_data.applymap(lambda x: x == 'TOTAL').any(axis=1)]
-                        generate_chart_insight_llm_new(str(visual_data))
+                        generate_chart_insight_llm(str(visual_data))
                         
                     elif len(data)>0:
                         
@@ -2567,32 +2570,32 @@ def user_ques_new(user_question_1, user_question, classification, user_question_
                             show_output = show_output.drop(index=0)
                             show_output2=show_output.copy()
                             show_output2.drop('Impact', axis=1, inplace=True)
-                            show_output2 = show_output2.style.applymap(custom_color_gradient_compare_new,subset=['NET_SENTIMENT'])
+                            show_output2 = show_output2.style.applymap(custom_color_gradient_compare,subset=['NET_SENTIMENT'])
                             show_output2 = show_output2.set_properties(**{'text-align': 'center'})
                             st.dataframe(show_output2)
                             #st.write(show_output2)
                             show_output2_html = show_output2.to_html(index=False)
-                            full_response_new += show_output2_html
+                            full_response += show_output2_html
                             st.write(f" Overall Net Sentiment is {overall_net_sentiment} for {overall_review_count} reviews.")
-                            qunat_summary = query_detailed_summary_new(str(show_output),user_question_chart + "Which have the following sentiment data : " + str(show_output),[])
-                            full_response_new += qunat_summary
+                            qunat_summary = query_detailed_summary(str(show_output),user_question_chart + "Which have the following sentiment data : " + str(show_output),[])
+                            full_response += qunat_summary
                             st.write(qunat_summary)
                         else:
                             show_output2=show_output.copy()
                             #show_output2.drop('Impact', axis=1, inplace=True)
                             st.write(show_output2)
                             show_output2_html = show_output2.to_html(index=False)
-                            full_response_new += show_output2_html
-                            qunat_summary = query_detailed_summary_new(str(show_output),user_question_chart + "Which have the following sentiment data : " + str(show_output),[])
+                            full_response += show_output2_html
+                            qunat_summary = query_detailed_summary(str(show_output),user_question_chart + "Which have the following sentiment data : " + str(show_output),[])
                             st.write(qunat_summary)
-                            full_response_new += qunat_summary
+                            full_response += qunat_summary
 
 
                         if(len(data))>1:
 
 #                                 heat_map_visual = st.checkbox("Would you like to see visualization for this?")
 #                                 if heat_map_visual:
-                            generate_chart_new(data)
+                            generate_chart(data)
                     else:
                         st.write(data)
                         # st.write(f"Unable to fetch relevant details based on the provided input. Kindly refine your search query and try again!")
@@ -2611,8 +2614,7 @@ You are an AI Assistant for an AI tool designed to provide insightful follow-up 
 
 The AI tool has reviews data scraped from the web for different versions of Copilot:'Windows Copilot', 'Microsoft Copilot', 'Copilot for Security', 'Copilot Pro', 'Copilot for Microsoft 365', 'Edge Copilot', 'Github Copilot', 'Copilot for Mobile'.
 The AI tool also has reviews data for competitors of different versions of Copilot: 'OpenAI GPT', 'Gemini AI', 'Claude AI', 'Vertex AI', 'Perplexity AI', 'Gemini AI For Mobile', 'ChatGPT For Mobile', 'Perplexity AI For Mobile', 'Claude AI For Mobile'.
-The reviews are analyzed to extract aspects and sentiments related to the following aspects: 'AdminHelper', 'AppIntegration', 'Code Generation', 'Compatibility', 'Connectivity', 'Cooking', 'Customization/Personalization', 'Ease of Use', 'eLearning', 'EmailCleaner', 'Entertainment', 'FinanceManager', 'General Knowledge/News', 'Generic', 'Health/Fitness', 'HomeOrders', 'Image Generation', 'Innovation', 'Interface', 'LatestLLM', 'LiveTranslation', 'MediaOrganizer', 'MultiLanguage', 'PersonalCurator', 'PrecisionPro', 'Price', 'Privacy', 'PrivateMode', 'Productivity', 'ProductivityAI', 'Performance' 'QuickResponse', 'RealEstateHelper', 'Reliability', 'SecureAssist', 'SkillBuilding', 'SmartCamera', 'SmartCalendar', 'SmartSearch', 'SmartShopping', 'Text Summarization/Generation', 'TieredPricing', 'UnifiedExperience', 'Vacation'.
-
+The reviews are analyzed to extract aspects and sentiments related to the following aspects: 'Interface',,'Connectivity','Personalization/Customization','Privacy','Compatibility','Generic','Innovation','Reliability','Productivity','Price','Text Summarization/Generation','Code Generation','Ease of Use','Performance'.
 Based on the user's previous response, which involved summarization, comparison, visualization, or generic queries about these reviews, suggest three follow-up prompts that the user can ask next to complete their story. Ensure the prompts cover a range of potential queries, including detailed summaries, aspect-wise comparisons, and more generic inquiries to provide a comprehensive understanding.
 
 Your goal is to generate three prompts that are mutually exclusive and advance the user's exploration of the data. Consider the natural progression of inquiry, ensuring that the prompts align with a logical story flow such as:
@@ -2629,7 +2631,7 @@ IMPORTANT: Use simple English for questions. """
 
 suggestions_interaction = """"""
 
-def prompt_suggestion_new(user_question):
+def prompt_suggestion(user_question):
     global suggestions_context,suggestions_interaction
     full_prompt = suggestions_context + suggestions_interaction + "\nQuestion:\n" + user_question + "\nAnswer:"
     response = client.completions.create(
@@ -2643,24 +2645,1112 @@ def prompt_suggestion_new(user_question):
     # Update context with the latest interaction
     suggestions_interaction += "\nQuestion:\n" + user_question + "\nAnswer:\n" + user_query
     return user_query
+
+def sugg_checkbox(user_question):
+    try:
+        # Check if prompt_sugg is not set, then get the prompt suggestions
+        if not st.session_state.prompt_sugg:
+            questions = prompt_suggestion(user_question)
+            print(f"Prompt Suggestions: {questions}")
+            questions = questions.split('\n')
+            questions_new = []
+            for i in questions:
+                if i[0].isdigit():
+                    x = i[3:]
+                    questions_new.append(x)
+            st.session_state.prompt_sugg = questions_new
+        
+        # Create checkboxes for each suggestion
+        checkbox_states = [st.checkbox(st.session_state.prompt_sugg[i], key=f"Checkbox{i}") for i in range(len(st.session_state.prompt_sugg))]
+        
+        # Check if any checkbox is selected
+        for i, state in enumerate(checkbox_states):
+            if state:
+                st.session_state.selected_sugg = st.session_state.prompt_sugg[i]
+                st.experimental_rerun()
+                break
+            st.session_state.selected_sugg = None
+
+        return st.session_state.selected_sugg
     
-def sugg_checkbox_new(user_question):
-    if not st.session_state.prompt_sugg:
-        questions = prompt_suggestion_new(user_question)
-        print(f"Prompt Suggestions: {questions}")
-        questions = questions.split('\n')
-        questions_new = []
-        for i in questions:
-            if i[0].isdigit():
-                x = i[3:]
-                questions_new.append(x)
-        st.session_state.prompt_sugg = questions_new
-    checkbox_states = []
-    checkbox_states = [st.checkbox(st.session_state.prompt_sugg[i],key = f"Checkbox{i}") for i in range(len(st.session_state.prompt_sugg))]
-    for i, state in enumerate(checkbox_states):
-        if state:
-            st.session_state.selected_sugg = st.session_state.prompt_sugg[i]
-            st.experimental_rerun()
-            break
+    except Exception as e:
+        # Log the error and return a blank value if something goes wrong
+        print(f"Error occurred: {e}")
         st.session_state.selected_sugg = None
-    return st.session_state.selected_sugg
+        return None
+        
+def update_global_sentiment_data(geography_selection):
+    global Devices_Sentiment_Data
+    Devices_Sentiment_Data = load_filtered_device_data(geography_selection)
+
+
+global full_response
+global full_response_new
+global positive_aspects, negative_aspects
+
+positive_aspects = []
+negative_aspects = []
+
+if __name__ == "__main__":
+    global full_response
+    global full_response_new
+    if st.sidebar.subheader("Select an option"):
+        options = ["Devices", "Copilot", "Devices - Prediction Model", "Chassis - Prediction Model", "OS - Prediction Model"]
+        selected_options = st.sidebar.selectbox("Select product", options)
+        if selected_options == "Copilot":
+            # st.header("Devices Review Synthesis Tool")
+            if st.sidebar.subheader("Select an approach for Topics"):
+                options = ["General Aspects", "Advanced Aspects"]    
+                selected_options = st.sidebar.selectbox("Select approach", options)
+                if selected_options == "General Aspects":
+                    st.session_state.devices_flag = False  # Created this flag to reset the history for devices. Please do not delete this.
+                    st.header("REXA - Copilot Review Synthesis Tool")
+                    st.session_state.user_question = None  # Resetting this variable for Devices, do not delete
+
+                    # Initialize session state variables for General Aspects
+                    if "messages_approach1" not in st.session_state:
+                        st.session_state['messages_approach1'] = []
+                    if "chat_initiated_approach1" not in st.session_state:
+                        st.session_state['chat_initiated_approach1'] = False
+                    if "selected_questions_approach1" not in st.session_state:
+                        st.session_state['selected_questions_approach1'] = ""
+                    if "copilot_curr_ques" not in st.session_state:
+                        st.session_state['copilot_curr_ques'] = None
+
+                    # Display chat history for General Aspects
+                    for message in st.session_state.messages_approach1:
+                        with st.chat_message(message["role"]):
+                            if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
+                                st.markdown(message["content"], unsafe_allow_html=True)
+                            else:
+                                st.markdown(message["content"])
+
+                    # Handle user input for General Aspects
+                    if user_inp := st.chat_input("Enter the Prompt: "):
+                        st.session_state.selected_questions_approach1 = user_inp
+                        st.chat_message("user").markdown(st.session_state.selected_questions_approach1)
+                        st.session_state.messages_approach1.append({"role": "user", "content": st.session_state.selected_questions_approach1})
+
+                    # Handle suggestions for General Aspects
+                    if st.session_state.selected_sugg:
+                        st.session_state.selected_questions_approach1 = st.session_state.selected_sugg
+                        st.chat_message("user").markdown(st.session_state.selected_questions_approach1)
+                        st.session_state.messages_approach1.append({"role": "user", "content": st.session_state.selected_questions_approach1})
+                        st.session_state.selected_sugg = None
+                        st.session_state.prompt_sugg = None
+
+                    # Process the selected question for General Aspects
+                    if st.session_state.selected_questions_approach1:
+                        with st.chat_message("assistant"):
+                            full_response = ""
+                            if st.session_state.copilot_curr_ques != st.session_state.selected_questions_approach1:
+                                try:
+                                    user_question = st.session_state.selected_questions_approach1.replace("Give me", "What is").replace("Give", "What is")
+                                    user_question_chart = user_question
+                                except:
+                                    pass
+
+                                classification = classify_prompts(user_question)
+                                print(classification)
+                                if classification != 'Generic':
+                                    user_question_1 = rephrase_prompt(str(user_question))
+                                    print(type(user_question_1))
+                                    print(user_question_1)
+                                    user_ques(str(user_question_1), user_question, classification, str(user_question_chart))
+                                else:
+                                    user_question_1 = user_question
+                                    try:
+                                        gen_ans = query_detailed_generic(user_question_1)
+                                        print(gen_ans)
+                                        st.write(gen_ans)
+                                        # Gen = query_quant_classify2_compare("Give me top 10 keywords with their review count and % of positive, negative and neutral for the same keywords to answer: " + user_question_1)
+                                        # print(Gen)
+                                        # st.dataframe(Gen)
+                                        # dic = Gen.to_dict(orient="dict")
+                                        # Gen_Q = query_detailed_generic("Summarize reviews of keywords regarding " + user_question_1 + "Which have the following keyword data:" + str(dic))
+                                        # st.write(Gen_Q)
+                                        full_response += gen_ans
+                                        history = check_history_length(history, gen_ans)
+                                        save_list(history)
+                                    except Exception as e:
+                                        print(e)
+                                        print("I couldn't get there")
+                                        gen_ans = query_detailed_generic(user_question_1)
+                                        print(gen_ans)
+                                        st.write(gen_ans)
+                                        full_response += gen_ans
+                                        history = check_history_length(history, gen_ans)
+                                        save_list(history)
+
+                                st.session_state.messages_approach1.append({"role": "assistant", "content": full_response, "is_html": True})
+                            st.session_state.copilot_curr_ques = st.session_state.selected_questions_approach1
+                            if 'full_response' in globals():
+                                selected_questions = sugg_checkbox(full_response)
+                                st.session_state['chat_initiated_approach1'] = True
+
+                    # Handle new chat button for General Aspects
+                    if st.session_state['chat_initiated_approach1'] and st.button("New Chat"):
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        st.session_state['messages_approach1'] = []
+                        st.session_state['chat_initiated_approach1'] = False
+                        st.session_state.selected_sugg = None
+                        st.session_state.prompt_sugg = None
+                        st.session_state.selected_questions_approach1 = ""
+                        st.session_state.copilot_curr_ques = None
+                        st.experimental_rerun()
+                else:
+                    if selected_options == "Advanced Aspects":
+                        st.session_state.devices_flag = False  # Created this flag to reset the history for devices. Please do not delete this.
+                        st.header("Copilot Review Synthesis Tool")
+                        st.session_state.user_question_new = None  # Resetting this variable for Devices, do not delete
+
+                        # Initialize session state variables for Advanced Aspects
+                        if "messages_approach2" not in st.session_state:
+                            st.session_state['messages_approach2'] = []
+                        if "chat_initiated_approach2" not in st.session_state:
+                            st.session_state['chat_initiated_approach2'] = False
+                        if "selected_questions_approach2" not in st.session_state:
+                            st.session_state['selected_questions_approach2'] = ""
+                        if "copilot_curr_ques" not in st.session_state:
+                            st.session_state['copilot_curr_ques'] = None
+
+                        # Display chat history for Advanced Aspects
+                        for message in st.session_state.messages_approach2:
+                            with st.chat_message(message["role"]):
+                                if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
+                                    st.markdown(message["content"], unsafe_allow_html=True)
+                                else:
+                                    st.markdown(message["content"])
+
+                        # Handle user input for Advanced Aspects
+                        if user_inp := st.chat_input("Enter the Prompt: "):
+                            st.session_state.selected_questions_approach2 = user_inp
+                            st.chat_message("user").markdown(st.session_state.selected_questions_approach2)
+                            st.session_state.messages_approach2.append({"role": "user", "content": st.session_state.selected_questions_approach2})
+
+                        # Handle suggestions for Advanced Aspects
+                        if st.session_state.selected_sugg:
+                            st.session_state.selected_questions_approach2 = st.session_state.selected_sugg
+                            st.chat_message("user").markdown(st.session_state.selected_questions_approach2)
+                            st.session_state.messages_approach2.append({"role": "user", "content": st.session_state.selected_questions_approach2})
+                            st.session_state.selected_sugg = None
+                            st.session_state.prompt_sugg = None
+
+                        # Process the selected question for Advanced Aspects
+                        if st.session_state.selected_questions_approach2:
+                            with st.chat_message("assistant"):
+                                full_response_new = ""
+                                if st.session_state.copilot_curr_ques != st.session_state.selected_questions_approach2:
+                                    try:
+                                        user_question = st.session_state.selected_questions_approach2.replace("Give me", "What is").replace("Give", "What is")
+                                        user_question_chart = user_question
+                                    except:
+                                        pass
+
+                                    classification = classify_prompts_new(user_question)
+                                    print(classification)
+                                    if classification != 'Generic':
+                                        user_question_1 = rephrase_prompt_new(str(user_question))
+                                        print(type(user_question_1))
+                                        print(user_question_1)
+                                        user_ques_new(str(user_question_1), user_question, classification, str(user_question_chart))
+                                    else:
+                                        user_question_1 = user_question
+                                        try:
+                                            gen_ans = query_detailed_generic_new(user_question_1)
+                                            st.write(gen_ans)
+                                            # Gen = query_quant_classify2_compare_new("Give me top 10 keywords with their review count and % of positive, negative and neutral for the same keywords to answer: " + user_question_1)
+                                            # print(Gen)
+                                            # st.dataframe(Gen)
+                                            # dic = Gen.to_dict(orient="dict")
+                                            # Gen_Q = query_detailed_generic_new("Summarize reviews of keywords regarding " + user_question_1 + "Which have the following keyword data:" + str(dic))
+                                            full_response_new += gen_ans
+                                            history = check_history_length_new(history, gen_ans)
+                                            save_list(history)
+                                        except Exception as e:
+                                            print(e)
+                                            print("I couldn't get there")
+                                            gen_ans = query_detailed_generic_new(user_question_1)
+                                            st.write(gen_ans)
+                                            full_response_new += gen_ans
+                                            history = check_history_length_new(history, gen_ans)
+                                            save_list(history)
+
+                                    st.session_state.messages_approach2.append({"role": "assistant", "content": full_response_new, "is_html": True})
+                                st.session_state.copilot_curr_ques = st.session_state.selected_questions_approach2
+                                if 'full_response_new' in globals():
+                                    selected_questions = sugg_checkbox_new(full_response_new)
+                                    st.session_state['chat_initiated_approach2'] = True
+
+                        # Handle new chat button for Advanced Aspects
+                        if st.session_state['chat_initiated_approach2'] and st.button("New Chat"):
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                            st.session_state['messages_approach2'] = []
+                            st.session_state['chat_initiated_approach2'] = False
+                            st.session_state.selected_sugg = None
+                            st.session_state.prompt_sugg = None
+                            st.session_state.selected_questions_approach2 = ""
+                            st.session_state.copilot_curr_ques = None
+                            st.experimental_rerun()
+                            
+######################################################################## Devices ###########################################################################################################################################################                          
+
+        elif selected_options == "Devices":
+            st.header("REXA - Devices Review Synthesis Tool")
+            if not st.session_state.devices_flag:
+                st.session_state.display_history_devices = []
+                st.session_state.context_history_devices = []
+                st.session_state.curr_response = ""
+                st.session_state.user_question = None
+                st.session_state.devices_flag = True
+                st.session_state.selected_sugg = None
+                st.session_state.prompt_sugg = None
+                st.session_state.selected_questions = ""
+                st.session_state.copilot_curr_ques = None
+                st.session_state.selected_sugg_devices = None
+            if "chat_initiated" not in st.session_state:
+                st.session_state['chat_initiated'] = False
+                
+            geography_selection = st.sidebar.selectbox("Geography", ["Worldwide", "DM7", "PRC", "ROW"], index=0)
+            os_selection = st.sidebar.selectbox("Operating System", ["All", "Windows", "MacOS", "ChromeOS"], index=0)
+            pc_type_selection = st.sidebar.selectbox("Copilot+ PC", ["All", "Yes", "No"], index=0)
+
+            prev_geography = st.session_state.get("prev_geography", None)
+            prev_os_selection = st.session_state.get("prev_os_selection", None)
+            prev_pc_type_selection = st.session_state.get("prev_pc_type_selection", None)
+
+            if ("Devices_Sentiment_Data" not in st.session_state or geography_selection != prev_geography or os_selection != prev_os_selection or pc_type_selection != prev_pc_type_selection):
+                st.session_state["Devices_Sentiment_Data"] = load_filtered_device_data(geography_selection, os_selection, pc_type_selection)
+                st.session_state["RCR_Sales_Data"] = load_filtered_sales_data(geography_selection, os_selection, pc_type_selection)
+                st.session_state["prev_geography"] = geography_selection
+                st.session_state["prev_os_selection"] = os_selection
+                st.session_state["prev_pc_type_selection"] = pc_type_selection
+                st.session_state.display_history_devices = []
+                st.session_state.user_question = None
+                st.session_state.curr_response = "" 
+            
+            for message in st.session_state.display_history_devices:
+                with st.chat_message(message["role"]):
+                    if message["role"] == "assistant" and "is_html" in message and message["is_html"]:
+                        st.markdown(message["content"], unsafe_allow_html=True)
+                    else:
+                        st.markdown(message["content"])
+            if user_inp := st.chat_input("Enter the Prompt: "):
+                st.chat_message("user").markdown(user_inp)
+                st.session_state.display_history_devices.append({"role": "user", "content": user_inp, "is_html": False})
+                st.session_state.user_question = user_inp
+
+            if st.session_state.selected_sugg_devices:
+                st.session_state.user_question = st.session_state.selected_sugg_devices
+                st.chat_message("user").markdown(st.session_state.user_question)
+                st.session_state.display_history_devices.append({"role": "user", "content": st.session_state.user_question, "is_html": False})
+                st.session_state.selected_sugg_devices = None
+                st.session_state.prompt_sugg_devices = None
+                
+            if st.session_state.user_question:
+                with st.chat_message("assistant"):
+                    classification = identify_prompt(st.session_state.user_question)
+                    print(f"\n\nPROMPT CLASSIFICATION FOR {st.session_state.user_question}: {classification}\n\n")
+                    if classification == 'summarization':
+                        device = device_summ(st.session_state.user_question.upper())
+                        st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
+                        st.session_state.curr_response = ""
+
+                    elif classification == 'comparison': 
+                        devices = extract_comparison_devices(st.session_state.user_question)
+                        print(devices)
+                        if len(devices) == 2:
+                            dev_comp(devices[0], devices[1])
+                            st.session_state.display_history_devices.append({"role": "assistant", "content": st.session_state.curr_response, "is_html": True})
+                            st.session_state.curr_response = ""
+                        elif len(devices) > 2:
+                            identified_devices = []
+                            for device in devices:
+                                identified_device = identify_devices(device.upper())
+                                if identified_device == "Device not available":
+                                    st.write(f"Device {device} not present in the data.")
+                                    continue
+                                identified_devices.append(identified_device)
+                            print(identified_devices)
+                            devices_data = query_quant_classify2_compare_devices("these are the exact names:" + str(identified_devices) + st.session_state.user_question)
+                            comparison_table = devices_data
+                            column_found_devices = (comparison_table)
+                            print(column_found_devices)
+                            dataframe_as_dict_devices = comparison_table.to_dict(orient='dict')
+
+                            try:
+                                # Pivot the table to get the desired format
+                                try:
+                                    compared_pivot_df = comparison_table.pivot_table(index="ASPECT", columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT', aggfunc='first')
+                                    compared_pivot_df = compared_pivot_df.reindex(comparison_table["ASPECT"].drop_duplicates().values)
+                                except Exception as e:
+                                    print(f"Error creating pivot table: {e}")
+
+                                # Process review counts
+                                try:
+                                    comparison_table['REVIEW_COUNT'] = comparison_table['REVIEW_COUNT'].astype(str).str.replace(',', '').astype(float).astype(int)
+                                    aspect_volume = comparison_table.groupby('ASPECT')['REVIEW_COUNT'].sum().reset_index()
+                                except Exception as e:
+                                    print(f"Error processing review counts: {e}")
+
+                                # Merge and sort comparison table
+                                try:
+                                    comparison_table = comparison_table.merge(aspect_volume, on='ASPECT', suffixes=('', '_Total'))
+                                    comparison_table = comparison_table.sort_values(by='REVIEW_COUNT_Total', ascending=False)
+                                except Exception as e:
+                                    print(f"Error merging and sorting comparison table: {e}")
+
+                                # Handle possible scenarios for creating pivot table
+                                try:
+                                    device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_' + 'ASPECT')
+                                    device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                    print("In 1st Case")
+                                except Exception as e1:
+                                    print(f"Error in 1st case: {e1}")
+                                    try:
+                                        device_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT', values='NET_SENTIMENT_' + 'ASPECT')
+                                        device_pivot_df = device_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                        print("In 2nd Case")
+                                    except Exception as e2:
+                                        print(f"Error in 2nd case: {e2}")
+                                        try:
+                                            device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT', 'REVIEW_COUNT_Total'])
+                                            print("In 3rd Case")
+                                        except Exception as e3:
+                                            print(f"Error in 3rd case: {e3}")
+                                            try:
+                                                # Creating the pivot table
+                                                device_pivot_df = comparison_table.pivot_table(index='Aspect', columns='Product_Family', values='NET_SENTIMENT')
+                                                unique_aspects = comparison_table['Aspect'].drop_duplicates().values
+                                                device_pivot_df = device_pivot_df.reindex(unique_aspects)
+                                            except Exception as e4:
+                                                print(f"Error while creating the pivot table: {e4}")
+                                                try:
+                                                    device_pivot_df = comparison_table.drop(columns=['REVIEW_COUNT'])
+                                                    print("In 5th Case")
+                                                except Exception as e5:
+                                                    print(f"Error in 5th case: {e5}")
+                                                    device_pivot_df = comparison_table
+                                try:
+                                    additional_pivot_df = comparison_table.pivot_table(index='ASPECT', columns='PRODUCT_FAMILY', values='NET_SENTIMENT_ASPECT', aggfunc='first')
+                                    additional_pivot_df = additional_pivot_df.reindex(comparison_table['ASPECT'].drop_duplicates().values)
+                                    print("Pivoting in additional case")
+                                except Exception as e6:
+                                    print(f"Error in additional case: {e6}")
+
+                                # Convert pivot table to dictionary and generate summary
+                                dataframe_as_dict_devices = device_pivot_df.to_dict(orient='dict')
+                                try:
+                                    device_pivot_df = device_pivot_df.astype(int)
+                                except Exception as e:
+                                    print(f"Error converting pivot table to int: {e}")
+                                    pass
+                                st.dataframe(device_pivot_df)
+                                compared_pivot_html = device_pivot_df.to_html(index=False)
+                                save_history_devices(compared_pivot_html)
+                                compare_dict = device_pivot_df.to_dict(orient="dict")
+                                compare_summary = query_detailed_summary_devices("Based on this Data" + str(compare_dict) + "Give detailed answer for this question: " + st.session_state.user_question)
+                                st.write(compare_summary)
+                                save_history_devices(compare_summary)
+                                st.session_state.display_history_devices.append({"role": "assistant", "content": compare_summary, "is_html": True})
+                            except Exception as e:
+                                Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
+                                st.write(Gen_Ans)
+                                save_history_devices(Gen_Ans)
+                                st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
+                        else:
+                            Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
+                            st.write(Gen_Ans)
+                            save_history_devices(Gen_Ans)
+                            st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
+
+                    elif classification == 'quant':
+                        st.session_state.user_question = rephrase_user_question(st.session_state.user_question)
+                        print(st.session_state.user_question)
+                        user_question_final=st.session_state.user_question.upper()
+                        user_question_final=user_question_final.replace("DEVICE","")
+                        devices_quant_approach1(user_question_final)
+                        
+
+                    elif classification == 'sales':
+                        st.session_state.user_question = rephrase_user_question(st.session_state.user_question)
+                        print(st.session_state.user_question)
+                        user_question_final=st.session_state.user_question.upper().replace("LAPTOP","")
+                        user_question_final=user_question_final.replace("DEVICE","")
+                        sales_quant_approach1(user_question_final)
+
+                    else:
+                        Gen_Ans = query_devices_detailed_generic(st.session_state.user_question)
+                        st.write(Gen_Ans)
+                        save_history_devices(Gen_Ans)
+                        st.session_state.display_history_devices.append({"role": "assistant", "content": Gen_Ans, "is_html": False})
+                st.session_state['chat_initiated'] = True
+                
+                if st.session_state.context_history_devices and classification != "summarization":
+                    selected_questions = sugg_checkbox_devices(str(st.session_state.context_history_devices))
+                
+            if st.session_state['chat_initiated'] and st.button("New Chat"):
+                st.session_state['messages'] = []
+                st.session_state['chat_initiated'] = False
+                st.session_state.user_question = None
+                st.session_state.display_history_devices = []
+                st.session_state.context_history_devices = []
+                st.session_state.curr_response = ""
+                st.session_state.prompt_sugg_devices = None
+                st.session_state.selected_sugg_devices = None
+                st.experimental_rerun()
+
+######################################   Devices - Prediction Model    ######################################################################### 
+ 
+        elif selected_options == "Devices - Prediction Model":
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str)
+
+            st.sidebar.subheader("Select OEM & Device")
+            oem_options = sorted(df['OEM'].unique()) 
+            selected_oem = st.sidebar.selectbox('OEM', oem_options) 
+            filtered_devices = sorted(df[df['OEM'] == selected_oem]['Cleaned_DeviceFamilyName'].unique())
+            selected_device = st.sidebar.selectbox('Device Name', filtered_devices) 
+
+            # Filter data based on the selected device
+            filtered_df = df[df['Cleaned_DeviceFamilyName'] == selected_device]
+
+            # Mapping for specification names to column names in DataFrame
+            spec_columns = {
+                'Processor': 'PFT',
+                'Processor Generation':'Processor Generation',
+                'GPU': 'GPU_Cleaned',
+                'NPU':'NPU_TOPS',
+                'RAM': 'RAM',
+                'Hard Drive': 'HardDrive',
+                'Screen Size': 'ScreenSize',
+                'Display Type':'Display Type',
+                'Resolution': 'Pixels',
+                'Price Band': 'PriceInDollars'     
+            }
+
+            # Cascading filter options for "Actual Device Specifications"
+            selected_actual_specs = {}
+            col1, col2 = st.columns(2)
+                    
+            with col1:
+                st.header("Actual Device Specifications")
+                
+                for spec, col_name in spec_columns.items():
+                    spec_review_counts = filtered_df.groupby(col_name)['Review_Count'].sum().reset_index()
+                    sorted_options = spec_review_counts.sort_values(by='Review_Count', ascending=False)[col_name].tolist()
+                    selected_value = st.selectbox(f"{spec}", sorted_options, key=f"spec_actual_{spec}")
+                    selected_actual_specs[spec] = selected_value
+                    filtered_df = filtered_df[filtered_df[col_name] == selected_value]
+            
+            with col2:
+                st.header("Hypothetical Specifications")
+                selected_hypothetical_specs = {}
+                
+                # Cascading for Processor and Processor Generation
+                processor_options = sorted(df['PFT'].unique(), key=lambda x: (str(x).isdigit(), x))
+                selected_processor = st.selectbox("Processor", processor_options, 
+                                                  index=processor_options.index(selected_actual_specs['Processor']) if selected_actual_specs['Processor'] in processor_options else 0,
+                                                  key="spec_forecast_Processor")
+                selected_hypothetical_specs['Processor'] = selected_processor
+                
+                # Filter unique Processor Generation values based on selected Processor
+                filtered_processor_gen_df = df[df['PFT'] == selected_processor]
+                processor_gen_options = sorted(filtered_processor_gen_df['Processor Generation'].drop_duplicates().tolist(), key=lambda x: (str(x).isdigit(), x))
+                
+                # Ensure selected Processor Generation exists in options
+                selected_processor_gen_index = processor_gen_options.index(selected_actual_specs['Processor Generation']) if selected_actual_specs['Processor Generation'] in processor_gen_options else 0
+                selected_processor_gen = st.selectbox("Processor Generation", processor_gen_options, 
+                                                      index=selected_processor_gen_index,
+                                                      key="spec_forecast_Processor_Generation")
+                selected_hypothetical_specs['Processor Generation'] = selected_processor_gen
+                
+                # Keeping other specs as they are
+                for spec, col in spec_columns.items():
+                    if spec not in ['Processor', 'Processor Generation']:
+                        options = sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x))
+                        selected_index = options.index(selected_actual_specs[spec]) if selected_actual_specs[spec] in options else 0
+                        selected_hypothetical_specs[spec] = st.selectbox(f"{spec}", options, 
+                                                                          index=selected_index, 
+                                                                          key=f"spec_forecast_{spec}") 
+            
+            # with col1:
+                # st.header("Actual Device Specifications")
+
+                # for spec, col_name in spec_columns.items():
+                    # if spec != 'Price Band':
+                        # spec_review_counts = filtered_df.groupby(col_name)['Review_Count'].sum().reset_index()
+                        # sorted_options = spec_review_counts.sort_values(by='Review_Count', ascending=False)[col_name].tolist()
+                        # selected_value = st.selectbox(f"{spec}", sorted_options, key=f"spec_actual_{spec}")
+                        # selected_actual_specs[spec] = selected_value
+                        # filtered_df = filtered_df[filtered_df[col_name] == selected_value]
+                    # else:
+                        # For Price Band, just show the most common value
+                        # price_value = filtered_df['PriceInDollars'].mode()[0] if not filtered_df.empty else "N/A"
+                        # selected_actual_specs[spec] = price_value
+                        # st.markdown(f"**{spec}:** {price_value}")
+                        # print(f"**{spec}:** {price_value}")
+
+            # with col2:
+                # st.header("Hypothetical Specifications")
+                # selected_hypothetical_specs = {}
+
+                # Processor and Gen
+                # processor_options = sorted(df['PFT'].unique(), key=lambda x: (str(x).isdigit(), x))
+                # selected_processor = st.selectbox("Processor", processor_options, 
+                                                  # index=processor_options.index(selected_actual_specs['Processor']) if selected_actual_specs['Processor'] in processor_options else 0,
+                                                  # key="spec_forecast_Processor")
+                # selected_hypothetical_specs['Processor'] = selected_processor
+
+                # filtered_processor_gen_df = df[df['PFT'] == selected_processor]
+                # processor_gen_options = sorted(filtered_processor_gen_df['Processor Generation'].drop_duplicates().tolist(), key=lambda x: (str(x).isdigit(), x))
+                # selected_processor_gen_index = processor_gen_options.index(selected_actual_specs['Processor Generation']) if selected_actual_specs['Processor Generation'] in processor_gen_options else 0
+                # selected_processor_gen = st.selectbox("Processor Generation", processor_gen_options, 
+                                                      # index=selected_processor_gen_index,
+                                                      # key="spec_forecast_Processor_Generation")
+                # selected_hypothetical_specs['Processor Generation'] = selected_processor_gen
+
+                # for spec, col in spec_columns.items():
+                    # if spec not in ['Processor', 'Processor Generation', 'Price Band']:
+                        # options = sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x))
+                        # selected_index = options.index(selected_actual_specs[spec]) if selected_actual_specs[spec] in options else 0
+                        # selected_hypothetical_specs[spec] = st.selectbox(f"{spec}", options, 
+                                                                         # index=selected_index, 
+                                                                         # key=f"spec_forecast_{spec}")
+                    elif spec == 'Price Band':
+                        # st.markdown(f"**{spec}:** {selected_actual_specs[spec]}")
+                        print(f"**{spec}:** {selected_actual_specs[spec]}")                        
+                        selected_hypothetical_specs[spec] = selected_actual_specs[spec]
+                                                                                
+                
+            filtered_hypothetical_df = df.copy()  # Start with the full DataFrame
+            for spec, selected_value in selected_hypothetical_specs.items():
+                filtered_hypothetical_df = filtered_hypothetical_df[filtered_hypothetical_df[spec_columns[spec]] == selected_value]
+
+            # Add a button to trigger Predict and display filtered data
+            if st.button("Predict"):
+                Actual_device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_actual_specs.items()]))
+                Hypothetical_Device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_hypothetical_specs.items()]))
+                actual_specs_table = pd.DataFrame(list(selected_actual_specs.items()),columns=["Specification", "Actual Value"])
+
+                hypothetical_specs_table = pd.DataFrame(list(selected_hypothetical_specs.items()), columns=["Specification", "Hypothetical Value"])
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Selected Specs for the Actual Device:**")
+                    st.dataframe(actual_specs_table)
+                with col2:
+                    st.write("**Selected Specs for the Hypothetical Device:**")
+                    st.dataframe(hypothetical_specs_table)
+                if not filtered_hypothetical_df.empty:
+                    print("Device Specs Avaliable in Database") 
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment_actual = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment_actual:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment_actual = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_actual['Net_Sentiment'] = aspect_wise_net_sentiment_actual['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual['Negative_Percentage'] = aspect_wise_net_sentiment_actual['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual[aspect_wise_net_sentiment_actual['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a = aspect_wise_net_sentiment_actual[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a)
+
+                    with col2:
+                        net_sentiment_forecasted = calculate_net_sentiment(filtered_hypothetical_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment_forecasted:.2f}%"
+                        st.write(forecasted_sentiment_message)
+
+                        aspect_wise_net_sentiment_forecasted = filtered_hypothetical_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_forecasted['Net_Sentiment'] = aspect_wise_net_sentiment_forecasted['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted['Negative_Percentage'] = aspect_wise_net_sentiment_forecasted['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted[aspect_wise_net_sentiment_forecasted['Review_Count'] >= 25]
+                        aspect_sentiment_forecast_b = aspect_wise_net_sentiment_forecasted[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        print(aspect_wise_net_sentiment_forecasted)
+                        st.write(aspect_sentiment_forecast_b)                        
+                   
+                    forecasted_summary = hypothetical_summary("Actual device sentiment are: " + str(aspect_sentiment_Actual_a.to_dict()) + "Hypothetical device specifications are: " + str(aspect_sentiment_forecast_b.to_dict())+ "Analyze sentiment changes for each aspect. Highlight positive trends where sentiment improved and provide constructive insights where it declined.")
+                    st.write(forecasted_summary)
+
+                else:
+                    user_prompt = spec_sentence( "Actual device specifications are: "+Actual_device_Specs + "Hypothetical device specifications are: "+ Hypothetical_Device_Specs + "Please provide the query to generate the hypothetical net sentiment.")
+                    print(user_prompt)
+                    result = sub_aspect_extraction(user_prompt)
+                    print(result)                    
+                    # positive_match = re.search(r'Positive\s*:\s*(.*?)(?:\nNegative|$)', result, re.DOTALL)
+                    # negative_match = re.search(r'Negative\s*:\s*(.*)', result, re.DOTALL)
+
+                    # positive_aspects = positive_match.group(1).split(',') if positive_match else []
+                    # negative_aspects = negative_match.group(1).split(',') if negative_match else []
+
+                    # positive_aspects = [aspect.strip() for aspect in positive_aspects]
+                    # negative_aspects = [aspect.strip() for aspect in negative_aspects]
+                       
+                    # a = positive_aspects
+                    # b = negative_aspects
+                    
+                    
+                    # positive_match = re.search(r'Positive(?:\s*Aspects)?\s*:\s*\[?(.*?)\]?(?:\n|$)', result, re.DOTALL)
+                    # negative_match = re.search(r'Negative(?:\s*Aspects)?\s*:\s*\[?(.*?)\]?(?:\n|$)', result, re.DOTALL)
+
+                    # positive_aspects = extract_aspects(positive_match.group(1)) if positive_match else []
+                    # negative_aspects = extract_aspects(negative_match.group(1)) if negative_match else []
+                       
+                    # a = positive_aspects
+                    # b = negative_aspects
+
+                    # print(f"Positive Aspects: {positive_aspects}")
+                    # print(f"Negative Aspects: {negative_aspects}")
+                    
+                    positive_aspects = extract_aspects_section(result, "Positive")
+                    negative_aspects = extract_aspects_section(result, "Negative")
+                    
+                    a = positive_aspects
+                    b = negative_aspects
+
+                    # print(f"Positive: {positive_aspects}")
+                    # print(f"Negative: {negative_aspects}")
+                    
+                    print(f"Positive Aspects: {positive_aspects}")
+                    print(f"Negative Aspects: {negative_aspects}")
+                    
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment1['Net_Sentiment'] = aspect_wise_net_sentiment1['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Negative_Percentage'] = aspect_wise_net_sentiment1['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Neutral_Percentage'] = aspect_wise_net_sentiment1['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Positive_Percentage'] = aspect_wise_net_sentiment1['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment1)
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1[aspect_wise_net_sentiment1['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a1 = aspect_wise_net_sentiment1[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a1)
+
+                    with col2:
+                        filtered_df['Sentiment_Score'] = filtered_df.apply(assign_sentiment, axis=1, args=(a, b))
+                        try:
+                            filter_criteria = find_changed_aspects(actual_specs_table, hypothetical_specs_table)
+                            print(filter_criteria)
+                            print(selected_oem)
+                            sentiment_dfs = calculate_sentiment_percentage_per_column_oem(df, filter_criteria, selected_oem)
+                            print(sentiment_dfs)
+                            filtered_df = apply_target_percentages(sentiment_dfs, filtered_df)
+                        except Exception as e:
+                            print(f"Error encountered in logic functions: {e}. Returning unmodified filtered_df.")
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(forecasted_sentiment_message)
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()                        
+                                  
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment['Net_Sentiment'] = aspect_wise_net_sentiment['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Negative_Percentage'] = aspect_wise_net_sentiment['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Neutral_Percentage'] = aspect_wise_net_sentiment['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Positive_Percentage'] = aspect_wise_net_sentiment['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment)
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment[aspect_wise_net_sentiment['Review_Count'] >= 25]  
+                        aspect_sentiment_Actual_a2 = aspect_wise_net_sentiment[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a2)
+                           
+                    forecasted_summary = hypothetical_summary("Actual device aspect wise sentiment are: "+str(aspect_sentiment_Actual_a1.to_dict()) + "Hypothetical device aspect wise sentiment are: "+ str(aspect_sentiment_Actual_a2.to_dict()) + "Analyze the provided data to P identify sentiment changes for each aspect. Provide a detailed summary highlighting positive insights for aspects with improved sentiment and offering constructive insights for aspects with declined sentiment" + user_prompt)
+                    st.write(forecasted_summary)
+                    
+############################################################################# Chassis - Prediction Model ###############################################################################################
+                    
+        elif selected_options == "Chassis - Prediction Model":
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str)
+
+            st.sidebar.subheader("Select Chassis & OEM")
+            
+            # Chassis Dropdown
+            chassis_options = sorted(df['Chassis Segment_New'].unique()) 
+            selected_chassis = st.sidebar.selectbox('Chassis', chassis_options) 
+            
+            # OEM Dropdown with "All" Option
+            filtered_oems = sorted(df[df['Chassis Segment_New'] == selected_chassis]['OEM'].unique())
+            oem_options = ["All"] + filtered_oems  # Adding "All" as the first option
+            selected_oem = st.sidebar.selectbox('OEM', oem_options) 
+
+            # Filter data based on the selected OEM
+            if selected_oem == "All":
+                filtered_df = df[df['Chassis Segment_New'] == selected_chassis]
+            else:
+                filtered_df = df[(df['Chassis Segment_New'] == selected_chassis) & (df['OEM'] == selected_oem)]
+
+
+            # Mapping for specification names to column names in DataFrame
+            spec_columns = {
+                'Processor': 'PFT',
+                'Processor Generation':'Processor Generation',
+                'GPU': 'GPU_Cleaned',
+                'NPU':'NPU_TOPS',
+                'RAM': 'RAM',
+                'Hard Drive': 'HardDrive',
+                'Screen Size': 'ScreenSize',
+                'Display Type':'Display Type',
+                'Resolution': 'Pixels',
+                'Price Band': 'PriceInDollars'     
+            }
+
+            # Cascading filter options for "Actual Device Specifications"
+            selected_actual_specs = {}
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.header("Actual Chassis Specifications")
+                for spec, col_name in spec_columns.items():
+                    options = sorted(filtered_df[col_name].unique(), key=lambda x: (str(x).isdigit(), x))
+                    selected_value = st.selectbox(f"{spec}", options, key=f"spec_actual_{spec}")
+                    selected_actual_specs[spec] = selected_value
+                    filtered_df = filtered_df[filtered_df[col_name] == selected_value]            
+            with col2:
+                st.header("Hypothetical Specifications")
+                selected_hypothetical_specs = {}
+                
+                # Cascading for Processor and Processor Generation
+                processor_options = sorted(df['PFT'].unique(), key=lambda x: (str(x).isdigit(), x))
+                selected_processor = st.selectbox("Processor", processor_options, 
+                                                  index=processor_options.index(selected_actual_specs['Processor']) if selected_actual_specs['Processor'] in processor_options else 0,
+                                                  key="spec_forecast_Processor")
+                selected_hypothetical_specs['Processor'] = selected_processor
+                
+                filtered_processor_gen_df = df[df['PFT'] == selected_processor]
+                processor_gen_options = sorted(filtered_processor_gen_df['Processor Generation'].drop_duplicates().tolist(), key=lambda x: (str(x).isdigit(), x))
+                
+                selected_processor_gen_index = processor_gen_options.index(selected_actual_specs['Processor Generation']) if selected_actual_specs['Processor Generation'] in processor_gen_options else 0
+                selected_processor_gen = st.selectbox("Processor Generation", processor_gen_options, 
+                                                      index=selected_processor_gen_index,
+                                                      key="spec_forecast_Processor_Generation")
+                selected_hypothetical_specs['Processor Generation'] = selected_processor_gen
+                
+                # Keeping other specs as they are
+                for spec, col in spec_columns.items():
+                    if spec not in ['Processor', 'Processor Generation']:
+                        options = sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x))
+                        selected_index = options.index(selected_actual_specs[spec]) if selected_actual_specs[spec] in options else 0
+                        selected_hypothetical_specs[spec] = st.selectbox(f"{spec}", options, 
+                                                                          index=selected_index, 
+                                                                          key=f"spec_forecast_{spec}")
+
+            # with col1:
+                # st.header("Actual Chassis Specifications")
+
+                # for spec, col_name in spec_columns.items():
+                    # if spec != 'Price Band':
+                        # spec_review_counts = filtered_df.groupby(col_name)['Review_Count'].sum().reset_index()
+                        # sorted_options = spec_review_counts.sort_values(by='Review_Count', ascending=False)[col_name].tolist()
+                        # selected_value = st.selectbox(f"{spec}", sorted_options, key=f"spec_actual_{spec}")
+                        # selected_actual_specs[spec] = selected_value
+                        # filtered_df = filtered_df[filtered_df[col_name] == selected_value]
+                    # else:
+                        # For Price Band, just show the most common value
+                        # price_value = filtered_df['PriceInDollars'].mode()[0] if not filtered_df.empty else "N/A"
+                        # selected_actual_specs[spec] = price_value
+                        # st.markdown(f"**{spec}:** {price_value}")
+                        # print(f"**{spec}:** {price_value}")
+
+            # with col2:
+                # st.header("Hypothetical Specifications")
+                # selected_hypothetical_specs = {}
+
+                # Processor and Gen
+                # processor_options = sorted(df['PFT'].unique(), key=lambda x: (str(x).isdigit(), x))
+                # selected_processor = st.selectbox("Processor", processor_options, 
+                                                  # index=processor_options.index(selected_actual_specs['Processor']) if selected_actual_specs['Processor'] in processor_options else 0,
+                                                  # key="spec_forecast_Processor")
+                # selected_hypothetical_specs['Processor'] = selected_processor
+
+                # filtered_processor_gen_df = df[df['PFT'] == selected_processor]
+                # processor_gen_options = sorted(filtered_processor_gen_df['Processor Generation'].drop_duplicates().tolist(), key=lambda x: (str(x).isdigit(), x))
+                # selected_processor_gen_index = processor_gen_options.index(selected_actual_specs['Processor Generation']) if selected_actual_specs['Processor Generation'] in processor_gen_options else 0
+                # selected_processor_gen = st.selectbox("Processor Generation", processor_gen_options, 
+                                                      # index=selected_processor_gen_index,
+                                                      # key="spec_forecast_Processor_Generation")
+                # selected_hypothetical_specs['Processor Generation'] = selected_processor_gen
+
+                # for spec, col in spec_columns.items():
+                    # if spec not in ['Processor', 'Processor Generation', 'Price Band']:
+                        # options = sorted(df[col].unique(), key=lambda x: (str(x).isdigit(), x))
+                        # selected_index = options.index(selected_actual_specs[spec]) if selected_actual_specs[spec] in options else 0
+                        # selected_hypothetical_specs[spec] = st.selectbox(f"{spec}", options, 
+                                                                         # index=selected_index, 
+                                                                         # key=f"spec_forecast_{spec}")
+                    elif spec == 'Price Band':
+                        # st.markdown(f"**{spec}:** {selected_actual_specs[spec]}")
+                        print(f"**{spec}:** {selected_actual_specs[spec]}")                        
+                        selected_hypothetical_specs[spec] = selected_actual_specs[spec]                                                             
+                
+            filtered_hypothetical_df = df.copy()
+            for spec, selected_value in selected_hypothetical_specs.items():
+                filtered_hypothetical_df = filtered_hypothetical_df[filtered_hypothetical_df[spec_columns[spec]] == selected_value]
+
+            if st.button("Predict"):
+                Actual_device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_actual_specs.items()]))
+                Hypothetical_Device_Specs = (", ".join([f"{spec}: {value}" for spec, value in selected_hypothetical_specs.items()]))
+                actual_specs_table = pd.DataFrame(list(selected_actual_specs.items()),columns=["Specification", "Actual Value"])
+
+                hypothetical_specs_table = pd.DataFrame(list(selected_hypothetical_specs.items()), columns=["Specification", "Hypothetical Value"])
+                # print(hypothetical_specs_table)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Selected Specs for the Actual Device:**")
+                    st.dataframe(actual_specs_table)
+                with col2:
+                    st.write("**Selected Specs for the Hypothetical Device:**")
+                    st.dataframe(hypothetical_specs_table)
+                if not filtered_hypothetical_df.empty:
+                    print("Device Specs Avaliable in Database") 
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment_actual = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment_actual:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment_actual = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_actual['Net_Sentiment'] = aspect_wise_net_sentiment_actual['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual['Negative_Percentage'] = aspect_wise_net_sentiment_actual['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_actual = aspect_wise_net_sentiment_actual[aspect_wise_net_sentiment_actual['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a = aspect_wise_net_sentiment_actual[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a)
+
+                    with col2:
+                        net_sentiment_forecasted = calculate_net_sentiment(filtered_hypothetical_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment_forecasted:.2f}%"
+                        st.write(forecasted_sentiment_message)
+
+                        aspect_wise_net_sentiment_forecasted = filtered_hypothetical_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment_forecasted['Net_Sentiment'] = aspect_wise_net_sentiment_forecasted['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted['Negative_Percentage'] = aspect_wise_net_sentiment_forecasted['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment_forecasted = aspect_wise_net_sentiment_forecasted[aspect_wise_net_sentiment_forecasted['Review_Count'] >= 25]
+                        aspect_sentiment_forecast_b = aspect_wise_net_sentiment_forecasted[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        print(aspect_wise_net_sentiment_forecasted)
+                        st.write(aspect_sentiment_forecast_b)                        
+                   
+                    forecasted_summary = hypothetical_summary("Actual device sentiment are: " + str(aspect_sentiment_Actual_a.to_dict()) + "Hypothetical device specifications are: " + str(aspect_sentiment_forecast_b.to_dict())+ "Analyze sentiment changes for each aspect. Highlight positive trends where sentiment improved and provide constructive insights where it declined.")
+                    st.write(forecasted_summary)
+
+                else:
+                    user_prompt = spec_sentence( "Actual device specifications are: "+Actual_device_Specs + "Hypothetical device specifications are: "+ Hypothetical_Device_Specs + "Please provide the query to generate the hypothetical net sentiment.")
+                    print(user_prompt)
+                    result = sub_aspect_extraction(user_prompt)
+                    print(result)
+                    # positive_match = re.search(r'Positive\s*:\s*(.*?)(?:\nNegative|$)', result, re.DOTALL)
+                    # negative_match = re.search(r'Negative\s*:\s*(.*)', result, re.DOTALL)
+                    # positive_match = re.search(r'Positive(?:\s*Aspects)?\s*:\s*\[?(.*?)\]?(?:\n|$)', result, re.DOTALL)
+                    # negative_match = re.search(r'Negative(?:\s*Aspects)?\s*:\s*\[?(.*?)\]?(?:\n|$)', result, re.DOTALL)
+
+                    # positive_aspects = positive_match.group(1).split(',') if positive_match else []
+                    # negative_aspects = negative_match.group(1).split(',') if negative_match else []
+
+                    # positive_aspects = [aspect.strip() for aspect in positive_aspects]
+                    # negative_aspects = [aspect.strip() for aspect in negative_aspects]
+                    # positive_aspects = extract_aspects(positive_match.group(1)) if positive_match else []
+                    # negative_aspects = extract_aspects(negative_match.group(1)) if negative_match else []
+                       
+                    # a = positive_aspects
+                    # b = negative_aspects
+                    
+                    positive_aspects = extract_aspects_section(result, "Positive")
+                    negative_aspects = extract_aspects_section(result, "Negative")
+                    
+                    a = positive_aspects
+                    b = negative_aspects
+
+                    # print(f"Positive: {positive_aspects}")
+                    # print(f"Negative: {negative_aspects}")
+                    
+                    print(f"Positive Aspects: {positive_aspects}")
+                    print(f"Negative Aspects: {negative_aspects}")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        actual_sentiment_message = f"**Actual Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(actual_sentiment_message)
+
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment1 = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()
+                        
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment1['Net_Sentiment'] = aspect_wise_net_sentiment1['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Negative_Percentage'] = aspect_wise_net_sentiment1['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Neutral_Percentage'] = aspect_wise_net_sentiment1['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment1['Positive_Percentage'] = aspect_wise_net_sentiment1['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment1)
+                        aspect_wise_net_sentiment1 = aspect_wise_net_sentiment1[aspect_wise_net_sentiment1['Review_Count'] >= 25]
+                        aspect_sentiment_Actual_a1 = aspect_wise_net_sentiment1[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a1)
+
+                    with col2:
+                        filtered_df['Sentiment_Score'] = filtered_df.apply(assign_sentiment, axis=1, args=(a, b))
+                        try:
+                            filter_criteria = find_changed_aspects(actual_specs_table, hypothetical_specs_table)
+                            print(filter_criteria)
+                            print(selected_oem)
+                            sentiment_dfs = calculate_sentiment_percentage_per_column_oem_chassis(df, filter_criteria, selected_oem, selected_chassis)
+                            print(sentiment_dfs)
+                            filtered_df = apply_target_percentages(sentiment_dfs, filtered_df)
+                        except Exception as e:
+                            print(f"Error encountered in logic functions: {e}. Returning unmodified filtered_df.")
+                        net_sentiment = calculate_net_sentiment(filtered_df)
+                        forecasted_sentiment_message = f"**Forecasted Net Sentiment:** {net_sentiment:.2f}%"
+                        st.write(forecasted_sentiment_message)
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({
+                            'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Negative_Percentage': calculate_negative_review_percentage(group)
+                        })).reset_index()
+                        aspect_wise_net_sentiment = filtered_df.groupby('Aspect').apply(lambda group: pd.Series({'Net_Sentiment': calculate_net_sentiment(group),
+                            'Review_Count': group['Review_Count'].sum(),
+                            'Positive_Percentage': calculate_review_percentages(group)['Positive_Percentage'],
+                            'Neutral_Percentage': calculate_review_percentages(group)['Neutral_Percentage'],
+                            'Negative_Percentage': calculate_review_percentages(group)['Negative_Percentage']
+                        })).reset_index()                        
+                                  
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment.sort_values(by='Review_Count', ascending=False)
+                        aspect_wise_net_sentiment['Net_Sentiment'] = aspect_wise_net_sentiment['Net_Sentiment'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Negative_Percentage'] = aspect_wise_net_sentiment['Negative_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Neutral_Percentage'] = aspect_wise_net_sentiment['Neutral_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        aspect_wise_net_sentiment['Positive_Percentage'] = aspect_wise_net_sentiment['Positive_Percentage'].apply(lambda x: f"{x:.2f}%")
+                        print(aspect_wise_net_sentiment)
+                        aspect_wise_net_sentiment = aspect_wise_net_sentiment[aspect_wise_net_sentiment['Review_Count'] >= 25]  
+                        aspect_sentiment_Actual_a2 = aspect_wise_net_sentiment[['Aspect', 'Net_Sentiment']].reset_index(drop=True)
+                        st.write(aspect_sentiment_Actual_a2)
+                           
+                    forecasted_summary = hypothetical_summary("Actual device aspect wise sentiment are: "+str(aspect_sentiment_Actual_a1.to_dict()) + "Hypothetical device aspect wise sentiment are: "+ str(aspect_sentiment_Actual_a2.to_dict()) + "Analyze the provided data to P identify sentiment changes for each aspect. Provide a detailed summary highlighting positive insights for aspects with improved sentiment and offering constructive insights for aspects with declined sentiment" + user_prompt)
+                    st.write(forecasted_summary)
+                 
+################################################################################### Windows OS - Prediction Model #####################################################################################
+                    
+        elif selected_options == "OS - Prediction Model":
+            st.sidebar.subheader("Select Operating System")
+            os_options = df_os['OS'].unique()
+            selected_os = st.sidebar.selectbox('Operating System', os_options)
+
+            filtered_df_os = df_os[df_os['OS'] == selected_os]
+            os_images = {"Windows": "Microsoft_Logo.png",
+                            "Mac OS": "Apple_Logo.png",}
+                        
+            image_sizes = {"Windows": 80,"MacOS": 85}
+            if selected_os in os_images:
+                image_path = os_images[selected_os]
+                image_width = image_sizes.get(selected_os, 100)
+                st.sidebar.image(image_path, caption=selected_os, width=image_width)
+
+            st.header("OS Consumer Sentiment Simulation")
+
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            if user_prompt := st.chat_input("Enter your prompt"):
+                st.chat_message("user").markdown(user_prompt)
+                st.session_state.messages.append({"role": "user", "content": user_prompt})
+
+                result = sub_aspect_extraction_os(user_prompt)
+                print(result)
+
+                positive_match = re.search(r'Positive\s*:\s*(.*?)(?:\nNegative|$)', result, re.DOTALL)
+                negative_match = re.search(r'Negative\s*:\s*(.*)', result, re.DOTALL)
+                positive_aspects = positive_match.group(1).split(',') if positive_match else []
+                negative_aspects = negative_match.group(1).split(',') if negative_match else []
+                positive_aspects = [aspect.strip() for aspect in positive_aspects if aspect.strip()]
+                negative_aspects = [aspect.strip() for aspect in negative_aspects if aspect.strip()]
+                print("Positive Aspects:", positive_aspects)
+                print("Negative Aspects:", negative_aspects)
+                a = positive_aspects
+                b = negative_aspects
+                actual_sentiment_df = filtered_df_os.copy()                
+                st.title("Operating System Consumer Sentiment Simulation")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    net_sentiment_actual_os = calculate_net_sentiment(actual_sentiment_df)
+                    st.write(f"**Actual Net Sentiment:** {net_sentiment_actual_os:.2f}%")
+                    aspect_sentiment_Actual_os = process_aspect_sentiment(actual_sentiment_df)
+                    st.write("Aspect-wise Sentiment (Actual):")
+                    st.write(aspect_sentiment_Actual_os)
+                    
+                with col2:
+                    actual_sentiment_df['Sentiment_Score'] = actual_sentiment_df.apply(assign_sentiment, axis=1, args=(a, b))
+                    net_sentiment_hypothetical = calculate_net_sentiment(actual_sentiment_df)
+                    st.write(f"**Hypothetical Net Sentiment:** {net_sentiment_hypothetical:.2f}%")  
+                    aspect_sentiment_forecast_os = process_aspect_sentiment(actual_sentiment_df)
+                    st.write("Aspect-wise Sentiment (Hypothetical):")
+                    st.write(aspect_sentiment_forecast_os)
+                    
+                forecasted_summary = hypothetical_summary_os(result + str(aspect_sentiment_Actual_os.to_dict()) + str(aspect_sentiment_forecast_os.to_dict()) + "Based on this data, provide a summary for the user question: " + user_prompt)    
+                st.write(forecasted_summary)
+                st.session_state.messages.append({"role": "assistant", "content": forecasted_summary})
